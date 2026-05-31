@@ -1,24 +1,28 @@
-//
-//  ContentView.swift
-//  RedbookRefill
-//
-//  Created by mac on 2026/5/15.
-//
-
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-    }
-}
+    @Environment(\.modelContext) private var modelContext
+    @Environment(AuthStore.self) private var authStore
+    @Binding var selectedTabRaw: Int
+    @State private var repository: Repository?
 
-#Preview {
-    ContentView()
+    var body: some View {
+        Group {
+            if authStore.isLoggedIn || authStore.isGuest {
+                if let repo = repository {
+                    RootTabView(selectedTabRaw: $selectedTabRaw)
+                        .environment(repo)
+                } else {
+                    Color.bg
+                        .ignoresSafeArea()
+                        .onAppear {
+                            repository = Repository(modelContext: modelContext)
+                        }
+                }
+            } else {
+                LoginView()
+            }
+        }
+    }
 }

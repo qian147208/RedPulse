@@ -1,0 +1,57 @@
+# ===== AI Tool Internals =====
+.reasonix/
+.claude/
+
+# ===== macOS =====
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ===== Xcode =====
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xcarchive
+*.dSYM.zip
+*.dSYM
+
+# ===== Swift Package Manager =====
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+
+# ===== CocoaPods =====
+Pods/
+*.xcworkspace
+
+# ===== Sensitive / Secrets =====
+# 任何包含真实 API Key 的本地配置文件
+Secrets.plist
+secrets.plist
+APIKeys.plist
+*.env
+.env
+.env.*
+Secrets/
+secrets/
+
+# ===== Editor =====
+.idea/
+*.swp
+*.swo
+
+# ===== Misc =====
+*.log
