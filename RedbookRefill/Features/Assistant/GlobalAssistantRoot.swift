@@ -387,12 +387,10 @@ private struct ChatPane: View {
     let session: ChatSession
 
     @Environment(\.modelContext) private var modelContext
-    @Environment(AuthStore.self) private var authStore
     @Query private var messages: [NoteComment]
     @State private var agent: GlobalChatAgent?
     @State private var draft: String = ""
     @FocusState private var inputFocused: Bool
-    @State private var showGuestAlert = false
 
     init(session: ChatSession) {
         self.session = session
@@ -424,11 +422,6 @@ private struct ChatPane: View {
             if agent == nil {
                 agent = GlobalChatAgent(modelContext: modelContext)
             }
-        }
-        .alert("访客次数已用完", isPresented: $showGuestAlert) {
-            Button("好的", role: .cancel) {}
-        } message: {
-            Text("登录后可解锁无限使用次数")
         }
     }
 
@@ -610,18 +603,9 @@ private struct ChatPane: View {
         let text = draft
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         guard agent?.isReplying != true else { return }
-        // Guest limit check
-        if authStore.isGuest && !authStore.canGuestGenerate() {
-            showGuestAlert = true
-            return
-        }
         draft = ""
         Task {
             await agent?.sendUserMessage(text, session: session)
-            // Increment guest count after successful reply
-            if authStore.isGuest {
-                authStore.incrementGuestCount()
-            }
         }
     }
 

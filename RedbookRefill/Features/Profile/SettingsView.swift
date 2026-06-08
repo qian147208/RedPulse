@@ -2,12 +2,9 @@
 //  SettingsView.swift
 //  RedPulse
 //
-//  设置子页面（见需求 §模块8 M2）。
-//  - 清除图片缓存（二次确认 → toast）
-//  - 清除所有数据（二次确认 → 清 SwiftData 全部）
-//  - 版本更新（V1.0.0 + 红点）
-//  - 版本号（不可点）
-//  - 登录用户：退出登录；访客：登录账号
+//  设置子页面。
+//  - 外观模式、图片缓存、大模型配置、数据清除、版本更新
+//  No auth — app is always available.
 //
 
 import SwiftUI
@@ -15,7 +12,6 @@ import SwiftUI
 struct SettingsView: View {
     // MARK: - Environment
 
-    @Environment(AuthStore.self) private var authStore
     @Environment(Repository.self) private var repository
     @Environment(\.dismiss) private var dismiss
 
@@ -26,7 +22,6 @@ struct SettingsView: View {
 
     @State private var showClearCacheAlert = false
     @State private var showClearDataAlert = false
-    @State private var showLogoutAlert = false
 
     @State private var showLLMConfig = false
 
@@ -38,14 +33,11 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Spacing.md) {
-                // 开发者调试 (debugToggleCard / debugLogCard) 默认隐藏 —— 普通用户不需要看到。
-                // 若需开启，可在「我的 → 设置」里启用（已注释入口；保留模型不变方便后续 toggle）。
                 appearanceCard
                 cacheCard
                 llmConfigCard
                 dataCard
                 versionUpdateCard
-                accountCard
             }
             .padding(.horizontal, Adaptive.horizontalPageMargin)
             .padding(.top, Spacing.md)
@@ -71,12 +63,6 @@ struct SettingsView: View {
         } message: {
             Text("将删除产品库、生成历史、反馈数据。此操作不可恢复。")
         }
-        .alert("退出登录", isPresented: $showLogoutAlert) {
-            Button("取消", role: .cancel) {}
-            Button("退出", role: .destructive, action: handleLogout)
-        } message: {
-            Text("退出后需要重新登录才能继续使用。")
-        }
         .sheet(isPresented: $showLLMConfig) {
             NavigationStack {
                 LLMConfigView()
@@ -85,37 +71,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Cards
-
-    private var debugToggleCard: some View {
-        HStack(spacing: Spacing.md) {
-            Image(systemName: "ladybug")
-                .font(.system(size: 18))
-                .foregroundStyle(Color.brand)
-                .frame(width: 28)
-            Text("开发者调试模式")
-                .font(.system(size: 15))
-                .foregroundStyle(Color.ink)
-            Spacer()
-            Toggle("", isOn: $debugMode)
-                .labelsHidden()
-                .tint(Color.brand)
-        }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, 10)
-        .background(Color.surface)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-    }
-
-    /// 仅在 debugMode 开启时显示，跳转到 DebugLogView。
-    private var debugLogCard: some View {
-        NavigationLink {
-            DebugLogView()
-        } label: {
-            rowLayout(icon: "doc.text.magnifyingglass", iconColor: Color.brand, label: "调试日志", labelColor: Color.ink, showChevron: true)
-                .cardBackground()
-        }
-        .buttonStyle(.plain)
-    }
 
     private var appearanceCard: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -213,35 +168,6 @@ struct SettingsView: View {
         .cardBackground()
     }
 
-@ViewBuilder
-    private var accountCard: some View {
-        if authStore.isGuest {
-            Button(action: handleGoLogin) {
-                Text("登录账号")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Color.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(Color.brand)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-            }
-            .padding(.top, Spacing.lg)
-        } else if authStore.isLoggedIn {
-            Button {
-                showLogoutAlert = true
-            } label: {
-                Text("退出登录")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(Color.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-            }
-            .padding(.top, Spacing.lg)
-        }
-    }
-
     // MARK: - Row helper
 
     private func rowLayout(icon: String, iconColor: Color, label: String, labelColor: Color, showChevron: Bool) -> some View {
@@ -290,7 +216,6 @@ struct SettingsView: View {
     // MARK: - Actions
 
     private func handleClearCache() {
-        // MVP：仅本地 toast 反馈。真实缓存清理由后端代理 + 客户端图片描述缓存协调（V3.2 §9.4-C）。
         popToast("图片缓存已清除 ✨")
     }
 
@@ -300,16 +225,6 @@ struct SettingsView: View {
         }
         repository.clearAllRecords()
         popToast("所有数据已清除 ✨")
-    }
-
-    private func handleLogout() {
-        authStore.logout()
-        // 路由层（ContentView）监测到 isLoggedIn=false 会自动切回 LoginView
-    }
-
-    private func handleGoLogin() {
-        // 访客点「登录账号」：调用 logout 重置状态，路由层会切到 LoginView
-        authStore.logout()
     }
 }
 

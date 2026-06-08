@@ -3,15 +3,12 @@ import SwiftData
 
 struct ProductListView: View {
     @Environment(Repository.self) private var repository
-    @Environment(AuthStore.self) private var authStore
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Query(sort: \Product.createdAt, order: .reverse) private var products: [Product]
 
     @State private var productToDelete: Product?
     @State private var showDeleteAlert = false
-
-    @State private var showGuestAlert: Bool = false
 
     // MARK: - Filter
     @State private var filterText: String = ""
@@ -81,12 +78,6 @@ struct ProductListView: View {
         } message: { _ in
             Text("确定要删除该产品吗？关联的本地图片也会一并清除。")
         }
-        .alert("访客次数已用完", isPresented: $showGuestAlert) {
-            Button("好的", role: .cancel) {}
-        } message: {
-            Text("登录后可解锁无限生成次数")
-        }
-
     }
 
     // MARK: - Toolbar

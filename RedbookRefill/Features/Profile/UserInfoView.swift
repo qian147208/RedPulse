@@ -2,13 +2,7 @@
 //  UserInfoView.swift
 //  RedPulse
 //
-//  从侧栏左下角头像入口打开的"个人信息"页。
-//  - 头像 / 昵称 / 状态胶囊
-//  - 手机号（来自 AuthStore，只读，访客时显示"未登录"）
-//  - 邮箱（用户可编辑，落 UserDefaults）
-//  - 帮助中心 / 意见反馈 / 退出登录
-//
-//  顶部"完成"按钮关闭 sheet，保证返回闭环。
+//  个人信息页（简化版，无登录/访客概念）。
 //
 
 import SwiftUI
@@ -23,7 +17,6 @@ typealias PlatformImage = NSImage
 #endif
 
 struct UserInfoView: View {
-    @Environment(AuthStore.self) private var authStore
     @Environment(\.dismiss) private var dismiss
     @FocusState private var emailFocused: Bool
     @State private var draftEmail: String = ""
@@ -44,13 +37,6 @@ struct UserInfoView: View {
                 actionList
                     .padding(.horizontal, Adaptive.horizontalPageMargin)
                     .padding(.top, Spacing.lg)
-
-                if authStore.isLoggedIn {
-                    logoutButton
-                        .padding(.horizontal, Adaptive.horizontalPageMargin)
-                        .padding(.top, Spacing.xl)
-                        .padding(.bottom, Spacing.xl)
-                }
             }
             .contentWidthCap()
         }
@@ -62,7 +48,7 @@ struct UserInfoView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("取消") {
-                    draftEmail = authStore.email
+                    draftEmail = UserDefaults.standard.string(forKey: "user.email") ?? ""
                     dismiss()
                 }
             }
@@ -74,7 +60,7 @@ struct UserInfoView: View {
             }
         }
         .onAppear {
-            draftEmail = authStore.email
+            draftEmail = UserDefaults.standard.string(forKey: "user.email") ?? ""
             if !avatarData.isEmpty {
                 #if canImport(UIKit)
                 avatarImage = UIImage(data: avatarData)
@@ -89,7 +75,6 @@ struct UserInfoView: View {
 
     private var header: some View {
         VStack(spacing: Spacing.lg) {
-            // Avatar with upload
             Button {
                 showPhotoPicker = true
             } label: {
@@ -141,74 +126,26 @@ struct UserInfoView: View {
                 }
             ), matching: .images)
 
-            Text(authStore.isGuest ? "访客" : "用户")
+            Text("用户")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(Color.ink)
 
-            statusChip
+            Text("普通用户")
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, 4)
+                .background(Color.ink3.opacity(0.12))
+                .foregroundStyle(Color.ink2)
+                .clipShape(Capsule())
         }
     }
 
-    @ViewBuilder
-    private var statusChip: some View {
-        if authStore.isGuest {
-            chipLabel(
-                text: "访客 · 剩余 \(authStore.guestRemaining)/\(AuthStore.guestDailyLimit)",
-                bg: Color.brandSoft,
-                fg: Color.brand
-            )
-        } else if authStore.isLoggedIn {
-            chipLabel(text: "普通用户", bg: Color.ink3.opacity(0.12), fg: Color.ink2)
-        } else {
-            chipLabel(text: "未登录", bg: Color.ink3.opacity(0.12), fg: Color.ink2)
-        }
-    }
-
-    private func chipLabel(text: String, bg: Color, fg: Color) -> some View {
-        Text(text)
-            .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, 4)
-            .background(bg)
-            .foregroundStyle(fg)
-            .clipShape(Capsule())
-    }
-
-    // MARK: - Info cards (phone + email)
+    // MARK: - Info cards
 
     private var infoCards: some View {
         VStack(spacing: Spacing.md) {
-            infoRow(
-                icon: "phone.fill",
-                label: "手机号",
-                value: authStore.phone.isEmpty ? "未登录" : Self.maskPhone(authStore.phone),
-                placeholder: "登录后显示"
-            )
-
             emailRow
         }
-    }
-
-    private func infoRow(icon: String, label: String, value: String, placeholder: String) -> some View {
-        HStack(spacing: Spacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(Color.brand)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.ink3)
-                Text(value.isEmpty ? placeholder : value)
-                    .font(.system(size: 15))
-                    .foregroundStyle(value.isEmpty ? Color.ink4 : Color.ink)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, 14)
-        .background(Color.surface)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
     }
 
     private var emailRow: some View {
@@ -235,7 +172,7 @@ struct UserInfoView: View {
                     #endif
             }
             Spacer()
-            if !draftEmail.isEmpty && draftEmail != authStore.email {
+            if !draftEmail.isEmpty && draftEmail != UserDefaults.standard.string(forKey: "user.email") {
                 Button {
                     commitEmailIfNeeded()
                 } label: {
@@ -254,11 +191,11 @@ struct UserInfoView: View {
 
     private func commitEmailIfNeeded() {
         let trimmed = draftEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != authStore.email else { return }
-        authStore.email = trimmed
+        guard trimmed != UserDefaults.standard.string(forKey: "user.email") else { return }
+        UserDefaults.standard.set(trimmed, forKey: "user.email")
     }
 
-    // MARK: - Action list (help / feedback)
+    // MARK: - Action list
 
     private var actionList: some View {
         VStack(spacing: Spacing.sm) {
@@ -293,34 +230,5 @@ struct UserInfoView: View {
         .padding(.vertical, 14)
         .background(Color.surface)
         .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-    }
-
-    // MARK: - Logout
-
-    private var logoutButton: some View {
-        Button {
-            authStore.logout()
-            dismiss()
-        } label: {
-            Text("退出登录")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Color.brand)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(Color.brandSoft)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Helpers
-
-    /// 手机号脱敏：保留首 3 末 4 位，中间 ****。短号直接返回。
-    private static func maskPhone(_ phone: String) -> String {
-        let digits = phone.filter { $0.isNumber }
-        guard digits.count >= 7 else { return phone }
-        let head = digits.prefix(3)
-        let tail = digits.suffix(4)
-        return "\(head) **** \(tail)"
     }
 }

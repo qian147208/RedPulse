@@ -3,7 +3,6 @@ import SwiftData
 
 struct GenerateView: View {
     @Environment(Repository.self) private var repository
-    @Environment(AuthStore.self) private var authStore
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Query(sort: \Product.createdAt, order: .reverse) private var products: [Product]
@@ -27,7 +26,7 @@ struct GenerateView: View {
     ]
     @State private var isLoadingHints = false
 
-    @State private var showGuestAlert = false
+
     @State private var generatedRecord: GenerationRecord?
     @State private var selectedProduct: Product? = nil
     @State private var showInspirationPicker = false
@@ -113,7 +112,6 @@ struct GenerateView: View {
 
                         formCard
                             .id("stepCards")
-                        guestFooterSection
                     }
                     .padding(.horizontal, Adaptive.horizontalPageMargin)
                     .padding(.vertical, Spacing.lg)
@@ -226,11 +224,6 @@ struct GenerateView: View {
                 && coachMarkManager.steps.map(\.id) == CoachMarkStep.generateSteps.map(\.id) {
                 hasSeenCoachMarksGenerate = true
             }
-        }
-        .alert("访客次数已用完", isPresented: $showGuestAlert) {
-            Button("去登录", role: .cancel) {}
-        } message: {
-            Text("登录后可解锁无限生成次数")
         }
         .alert("生成失败", isPresented: $showGenerateError) {
             Button("好的", role: .cancel) {}
@@ -976,21 +969,10 @@ struct GenerateView: View {
 
 
 
-    // MARK: - Guest Footer
-
+        // MARK: - Guest Footer (deprecated — guest mode removed, always empty)
     @ViewBuilder
     private var guestFooterSection: some View {
-        if authStore.isGuest {
-            HStack(spacing: 6) {
-                Image(systemName: "person.crop.circle.badge.questionmark")
-                    .font(Typography.caption)
-                Text("访客今日剩余 \(authStore.guestRemaining) 次（每天 \(AuthStore.guestDailyLimit) 次、本周已用 \(authStore.guestWeeklyCount)/\(AuthStore.guestWeeklyLimit)）")
-                    .font(Typography.caption)
-            }
-            .foregroundStyle(Color.ink3)
-            .padding(.vertical, Spacing.md)
-            .frame(maxWidth: .infinity)
-        }
+        EmptyView()
     }
 
     // MARK: - Helpers
@@ -1131,10 +1113,7 @@ struct GenerateView: View {
     }
 
     private func handleGenerate() {
-        if authStore.isGuest && !authStore.canGuestGenerate() {
-            showGuestAlert = true
-            return
-        }
+        // Guest limit check removed — app is always fully available
 
         isGenerating = true
         let hint = hintText.trimmingCharacters(in: .whitespaces).isEmpty ? nil : hintText.trimmingCharacters(in: .whitespaces)
@@ -1164,7 +1143,6 @@ struct GenerateView: View {
         let capturedKeyword = keyword
         let capturedAdType = selectedAdType
         let capturedHint = hint
-        let capturedAuthStore = authStore
         let capturedModelContext = modelContext
         let capturedProductId = selectedProduct?.id
 
@@ -1192,7 +1170,6 @@ struct GenerateView: View {
                 finishGeneration(
                     response: response,
                     record: record,
-                    capturedAuthStore: capturedAuthStore,
                     capturedModelContext: capturedModelContext
                 )
             } catch is CancellationError {
@@ -1216,7 +1193,6 @@ struct GenerateView: View {
     private func finishGeneration(
         response: GenerateResponse,
         record: GenerationRecord,
-        capturedAuthStore: AuthStore,
         capturedModelContext: ModelContext
     ) {
         capturedModelContext.insert(record)
@@ -1224,9 +1200,6 @@ struct GenerateView: View {
             try capturedModelContext.save()
         } catch {
             DebugLog.shared.log(.error, .llm, "modelContext.save() failed", details: error.localizedDescription)
-        }
-        if capturedAuthStore.isGuest {
-            capturedAuthStore.incrementGuestCount()
         }
         generateTask = nil
         isGenerating = false
