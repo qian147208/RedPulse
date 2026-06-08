@@ -3,13 +3,13 @@
 //  RedPulse
 //
 //  「我的」个人中心 — 数据看板 + 快捷操作 + 设置入口。
+//  No auth required — app is always available.
 //
 
 import SwiftUI
 import SwiftData
 
 struct ProfileView: View {
-    @Environment(AuthStore.self) private var authStore
     @Environment(CoachMarkManager.self) private var coachMarkManager
     @Query(sort: \Product.createdAt, order: .reverse) private var products: [Product]
     @Query(sort: \GenerationRecord.createdAt, order: .reverse) private var records: [GenerationRecord]
@@ -74,7 +74,7 @@ struct ProfileView: View {
                     .foregroundStyle(.white)
             }
 
-            Text(authStore.isGuest ? "访客" : "用户")
+            Text("用户")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(Color.ink)
 
@@ -82,26 +82,14 @@ struct ProfileView: View {
         }
     }
 
-    @ViewBuilder
     private var statusChip: some View {
-        if authStore.isGuest {
-            let remaining = max(0, AuthStore.guestGenerationLimit - authStore.guestGenerationCount)
-            Text("访客 · 剩余 \(remaining)/3")
-                .font(.system(size: 12, weight: .medium))
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, 4)
-                .background(Color.brandSoft)
-                .foregroundStyle(Color.brand)
-                .clipShape(Capsule())
-        } else {
-            Text("普通用户")
-                .font(.system(size: 12, weight: .medium))
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, 4)
-                .background(Color.ink3.opacity(0.12))
-                .foregroundStyle(Color.ink2)
-                .clipShape(Capsule())
-        }
+        Text("普通用户")
+            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, 4)
+            .background(Color.ink3.opacity(0.12))
+            .foregroundStyle(Color.ink2)
+            .clipShape(Capsule())
     }
 
     // MARK: - Stats cards

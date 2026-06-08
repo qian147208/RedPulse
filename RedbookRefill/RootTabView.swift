@@ -5,6 +5,7 @@
 //  Adaptive root navigation with Liquid Glass accents.
 //  iPhone: native TabView for full safe-area & iPhone 13+ adaptation
 //  iPad/Mac: NavigationSplitView + sidebar
+//  No login/guest — app is always available.
 //
 
 import SwiftUI
@@ -55,9 +56,10 @@ struct RootTabView: View {
         get { TabItem(rawValue: selectedTabRaw) ?? .generate }
         nonmutating set { selectedTabRaw = newValue.rawValue }
     }
+    @State private var sidebarSelection: TabItem? = .generate
     @State private var showOnboardingSheet: Bool = false
+    @State private var coachMarkScheduled = false
     @AppStorage("has_seen_onboarding") private var hasSeenOnboarding: Bool = false
-    @Environment(AuthStore.self) private var authStore
     @Environment(CoachMarkManager.self) private var coachMarkManager
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -65,40 +67,36 @@ struct RootTabView: View {
 
     var body: some View {
         rootLayout
-            .overlay {
-                ChatLauncher()
-                    .padding(.bottom, chatLauncherBottomPadding)
-            }
-            .overlay {
-                CoachMarkOverlay()
-            }
-            .onChange(of: authStore.isLoggedIn) { _, newValue in
-                if newValue && !hasSeenOnboarding { showOnboardingSheet = true }
-            }
-            .onChange(of: authStore.isGuest) { _, newValue in
-                if newValue && !hasSeenOnboarding { showOnboardingSheet = true }
-            }
+            // .overlay {
+                // ChatLauncher()
+                    // .padding(.bottom, chatLauncherBottomPadding)
+            // }
+            // .overlay {
+                // CoachMarkOverlay()
+            // }
             .onAppear {
-                if (authStore.isLoggedIn || authStore.isGuest) && !hasSeenOnboarding {
+                if !hasSeenOnboarding {
                     showOnboardingSheet = true
-                } else if !coachMarkManager.hasShownGenerate {
-                    coachMarkManager.hasShownGenerate = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        coachMarkManager.start(steps: CoachMarkStep.generateSteps)
-                    }
                 }
             }
             .onChange(of: showOnboardingSheet) { _, showing in
-                if !showing && !coachMarkManager.hasShownGenerate {
-                    coachMarkManager.hasShownGenerate = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                        coachMarkManager.start(steps: CoachMarkStep.generateSteps)
-                    }
+                if !showing {
+                    scheduleCoachMark()
+                }
+            }
+            .onAppear {
+                if hasSeenOnboarding {
+                    scheduleCoachMark()
                 }
             }
             .sheet(isPresented: $showOnboardingSheet) {
                 OnboardingView()
             }
+    }
+
+    private func scheduleCoachMark() {
+        guard !coachMarkManager.hasShownGenerate else { return }
+        coachMarkScheduled = true
     }
 
     /// Top-right padding for the quality toggle — clears window traffic lights on macOS
@@ -139,6 +137,7 @@ struct RootTabView: View {
             tabLayout
         }
         #else
+        // macOS: always use sidebar layout.
         sidebarLayout
         #endif
     }
@@ -147,72 +146,54 @@ struct RootTabView: View {
 
     private var sidebarLayout: some View {
         NavigationSplitView {
-            List(selection: Binding<TabItem?>(
-                get: { selectedTab },
-                set: { newValue in
-                    if let v = newValue { selectedTab = v }
-                }
-            )) {
-                Section {
-                    HStack(spacing: Spacing.sm) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(Color.brand)
-                        Spacer()
-                    }
-                    .listRowBackground(Color.clear)
-                }
-
-                Section {
-                    ForEach(TabItem.allCases) { tab in
-                        Label(tab.title, systemImage: tab.icon)
-                            .font(.system(size: 15))
-                            .padding(.vertical, 4)
-                            .tag(tab)
-                            .keyboardShortcut(KeyboardShortcut(tab.shortcutKey, modifiers: .command))
-                    }
-                } header: {
-                    Text("功能")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.ink3)
-                        .textCase(nil)
+            List(selection: $sidebarSelection) {
+                ForEach(TabItem.allCases) { tab in
+                    Label(tab.title, systemImage: tab.icon)
+                        .font(.system(size: 15))
+                        .tag(tab)
                 }
             }
             .listStyle(.sidebar)
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-            #endif
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                sidebarFooter
-            }
             .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
         } detail: {
-            NavigationStack {
-                Group {
-                    switch selectedTab {
-                    case .generate:
-                        GenerateView()
-                    case .products:
-                        ProductListView()
-                    case .history:
-                        HistoryView()
-                    case .profile:
-                        ProfileView(selectedTab: Binding(
-                            get: { TabItem(rawValue: selectedTabRaw) ?? .generate },
-                            set: { selectedTabRaw = $0.rawValue }
-                        ))
-                    }
+            switch sidebarSelection ?? .generate {
+            case .generate:
+                NavigationStack {
+                    GenerateView()
                 }
-                .toolbar {
-                    #if os(macOS)
-                    ToolbarItem(placement: .primaryAction) {
-                        QualityToggle()
-                    }
-                    #endif
+            case .products:
+                NavigationStack {
+                    ProductListView()
+                }
+            case .history:
+                NavigationStack {
+                    HistoryView()
+                }
+            case .profile:
+                NavigationStack {
+                    ProfileView(selectedTab: Binding(
+                        get: { sidebarSelection ?? .generate },
+                        set: { sidebarSelection = $0 }
+                    ))
+                        .navigationTitle("我的")
+                        #if os(iOS)
+                        .navigationBarTitleDisplayMode(.inline)
+                        #endif
                 }
             }
         }
         .tint(Color.brand)
+        .onChange(of: sidebarSelection) { _, newSelection in
+            if let newSelection {
+                selectedTabRaw = newSelection.rawValue
+            }
+        }
+        .task {
+            // 初始化时同步 AppStorage → sidebarSelection
+            if let tab = TabItem(rawValue: selectedTabRaw) {
+                sidebarSelection = tab
+            }
+        }
     }
 
 
@@ -222,44 +203,33 @@ struct RootTabView: View {
     private var tabLayout: some View {
         ZStack(alignment: .bottom) {
             ZStack {
-                NavigationStack {
-                    GenerateView()
+                // Only render the active tab — prevents all 4 tabs from being
+                // instantiated simultaneously, which blocks the main thread on startup.
+                switch selectedTab {
+                case .generate:
+                    NavigationStack {
+                        GenerateView()
+                    }
+                case .products:
+                    NavigationStack {
+                        ProductListView()
+                    }
+                case .history:
+                    NavigationStack {
+                        HistoryView()
+                    }
+                case .profile:
+                    NavigationStack {
+                        ProfileView(selectedTab: Binding(
+                            get: { TabItem(rawValue: selectedTabRaw) ?? .generate },
+                            set: { selectedTabRaw = $0.rawValue }
+                        ))
+                            .navigationTitle("我的")
+                            #if os(iOS)
+                            .navigationBarTitleDisplayMode(.inline)
+                            #endif
+                    }
                 }
-                .opacity(selectedTab == .generate ? 1 : 0)
-                .allowsHitTesting(selectedTab == .generate)
-                .zIndex(selectedTab == .generate ? 1 : 0)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                NavigationStack {
-                    ProductListView()
-                }
-                .opacity(selectedTab == .products ? 1 : 0)
-                .allowsHitTesting(selectedTab == .products)
-                .zIndex(selectedTab == .products ? 1 : 0)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                NavigationStack {
-                    HistoryView()
-                }
-                .opacity(selectedTab == .history ? 1 : 0)
-                .allowsHitTesting(selectedTab == .history)
-                .zIndex(selectedTab == .history ? 1 : 0)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                NavigationStack {
-                    ProfileView(selectedTab: Binding(
-                        get: { TabItem(rawValue: selectedTabRaw) ?? .generate },
-                        set: { selectedTabRaw = $0.rawValue }
-                    ))
-                        .navigationTitle("我的")
-                        #if os(iOS)
-                        .navigationBarTitleDisplayMode(.inline)
-                        #endif
-                }
-                .opacity(selectedTab == .profile ? 1 : 0)
-                .allowsHitTesting(selectedTab == .profile)
-                .zIndex(selectedTab == .profile ? 1 : 0)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
             // Tab bar with glass styling — 背景延伸到 Home Indicator

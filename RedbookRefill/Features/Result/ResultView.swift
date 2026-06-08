@@ -91,7 +91,6 @@ struct ResultView: View {
     @State private var isPreparingPrompts: Bool = false
 
     @State private var showEmojiPicker: Bool = false
-    @State private var showGuestAlert: Bool = false
     @State private var selectedText: String = ""
     @State private var showRewriteDialog: Bool = false
     @State private var selectionToolbarVM = SelectionToolbarViewModel()
@@ -180,11 +179,6 @@ struct ResultView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .disabled(isGenerating)
-        .alert("访客次数已用完", isPresented: $showGuestAlert) {
-            Button("好的", role: .cancel) {}
-        } message: {
-            Text("登录后可解锁无限生成次数")
-        }
         .task {
             // 首次进入时绑 modelContext 创建 DiagnosticAgent（只创建一次）
             if diagnosticAgent == nil {
