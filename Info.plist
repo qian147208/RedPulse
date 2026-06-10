@@ -40,5 +40,11 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>红书笔芯 需要访问摄像头，以便拍摄产品照片用于生成笔记。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>红书笔芯 需要访问照片库，以便选择产品参考图用于生成笔记。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>红书笔芯 需要访问照片库，以便选择产品参考图用于生成笔记。</string>
 </dict>
 </plist>

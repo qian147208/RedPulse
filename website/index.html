@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>红书笔芯 — AI 小红书笔记创作工具</title>
+    <meta name="description" content="红书笔芯是你的专属小红书文案 AI，一键生成高质量小红书图文笔记。">
+    <style>
+        :root {
+            --brand: #FF2442;
+            --brand-soft: #FFE8EC;
+            --bg: #FEF9F5;
+            --ink: #1A1A1A;
+            --ink2: #555;
+            --ink3: #999;
+            --surface: #fff;
+            --radius: 16px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+            background: var(--bg);
+            color: var(--ink);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ========== NAV ========== */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0;
+            z-index: 100;
+            background: rgba(254,249,245,0.82);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+        }
+        .nav-inner {
+            max-width: 1100px; margin: 0 auto;
+            padding: 14px 24px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .nav-logo {
+            font-size: 20px; font-weight: 700;
+            color: var(--brand);
+            text-decoration: none;
+        }
+        .nav-logo span { color: var(--ink); }
+        .nav-links { display: flex; gap: 28px; }
+        .nav-links a {
+            text-decoration: none; color: var(--ink2);
+            font-size: 15px; font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--brand); }
+
+        /* ========== HERO ========== */
+        .hero {
+            padding: 160px 24px 100px;
+            text-align: center;
+            max-width: 800px; margin: 0 auto;
+        }
+        .hero-badge {
+            display: inline-block;
+            background: var(--brand-soft);
+            color: var(--brand);
+            font-size: 13px; font-weight: 600;
+            padding: 6px 16px;
+            border-radius: 100px;
+            margin-bottom: 24px;
+        }
+        .hero h1 {
+            font-size: clamp(36px, 6vw, 56px);
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 20px;
+        }
+        .hero h1 .accent { color: var(--brand); }
+        .hero p {
+            font-size: 18px;
+            color: var(--ink2);
+            max-width: 560px;
+            margin: 0 auto 40px;
+        }
+        .hero-cta { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 14px 32px;
+            border-radius: 100px;
+            font-size: 16px; font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer; border: none;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+        .btn-primary {
+            background: var(--brand);
+            color: #fff;
+        }
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--ink);
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        /* ========== SCREENSHOT PREVIEW ========== */
+        .screenshot-section {
+            padding: 60px 24px 100px;
+            text-align: center;
+        }
+        .screenshot-scroll {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 20px 0;
+            max-width: 900px;
+            margin: 0 auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+        .screenshot-scroll img {
+            scroll-snap-align: center;
+            height: 480px;
+            border-radius: 20px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+
+        /* ========== FEATURES ========== */
+        .features {
+            padding: 80px 24px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .section-title {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 56px;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+        .feature-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 32px 28px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+            border: 1px solid rgba(0,0,0,0.04);
+            transition: transform 0.2s;
+        }
+        .feature-card:hover { transform: translateY(-4px); }
+        .feature-icon {
+            width: 48px; height: 48px;
+            background: var(--brand-soft);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px;
+            margin-bottom: 16px;
+        }
+        .feature-card h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .feature-card p {
+            font-size: 15px;
+            color: var(--ink2);
+        }
+
+        /* ========== PRIVACY ========== */
+        .privacy-section {
+            padding: 80px 24px;
+            background: var(--surface);
+        }
+        .privacy-inner {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .privacy-section h2 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        .privacy-section p {
+            font-size: 15px;
+            color: var(--ink2);
+            margin-bottom: 12px;
+        }
+        .privacy-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        .privacy-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+            font-size: 15px;
+            color: var(--ink2);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .privacy-list li::before {
+            content: "✓";
+            color: var(--brand);
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        /* ========== DOWNLOAD CTA ========== */
+        .download-cta {
+            padding: 100px 24px;
+            text-align: center;
+        }
+        .download-cta h2 {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+        .download-cta p {
+            font-size: 18px;
+            color: var(--ink2);
+            margin-bottom: 32px;
+        }
+
+        /* ========== FOOTER ========== */
+        footer {
+            padding: 40px 24px;
+            text-align: center;
+            border-top: 1px solid rgba(0,0,0,0.06);
+        }
+        footer a {
+            color: var(--brand);
+            text-decoration: none;
+            margin: 0 12px;
+            font-size: 14px;
+        }
+        footer p {
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--ink3);
+        }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 600px) {
+            .nav-links { gap: 16px; }
+            .nav-links a { font-size: 14px; }
+            .hero { padding: 120px 20px 60px; }
+            .hero p { font-size: 16px; }
+            .screenshot-scroll img { height: 400px; }
+            .features-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAV -->
+    <nav>
+        <div class="nav-inner">
+            <a href="index.html" class="nav-logo">红书笔芯 <span>/ RedPulse</span></a>
+            <div class="nav-links">
+                <a href="index.html">首页</a>
+                <a href="support.html">技术支持</a>
+                <a href="privacy.html">隐私政策</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-badge">✨ AI 驱动的创作工具</div>
+        <h1>让小红书创作<br><span class="accent">更简单</span></h1>
+        <p>选产品、写关键词、选风格，一键生成标题、正文、标签、配图建议。小红书博主、品牌营销、电商运营都在用的 AI 笔记创作工具。</p>
+        <div class="hero-cta">
+            <a href="#screenshots" class="btn btn-primary">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                查看截屏
+            </a>
+            <a href="https://apps.apple.com/app/你的appid" target="_blank" class="btn btn-secondary">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 21.99 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.1 22C7.79 22.05 6.8 20.68 5.96 19.47C4.25 16.56 2.94 11.3 4.7 7.72A5.85 5.85 0 019.43 7.21C10.55 7.2 11.55 7.92 12.15 7.92C12.74 7.92 13.93 7.02 15.24 7.18C15.86 7.21 17.63 7.47 18.83 9.11C18.74 9.18 16.38 10.54 16.4 13.47C16.44 17.22 19.7 18.35 19.73 18.37C19.7 18.45 19.24 19.33 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z"/></svg>
+                App Store 下载
+            </a>
+        </div>
+    </section>
+
+    <!-- SCREENSHOTS -->
+    <section class="screenshot-section" id="screenshots">
+        <h2 class="section-title">应用截屏</h2>
+        <div class="screenshot-scroll">
+            <img src="screenshots/01-generate.jpg" alt="AI 智能文案生成">
+            <img src="screenshots/02-products.jpg" alt="产品库管理">
+            <img src="screenshots/03-result.jpg" alt="结果编辑">
+            <img src="screenshots/04-history.jpg" alt="历史记录">
+            <img src="screenshots/05-ai-assistant.jpg" alt="AI 笔记助手">
+        </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="features">
+        <h2 class="section-title">核心功能</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📝</div>
+                <h3>AI 智能文案生成</h3>
+                <p>选产品、写关键词、选风格，一键生成标题、正文、标签、配图建议。支持 4 种笔记类型和多种小红书风格。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📚</div>
+                <h3>产品库管理</h3>
+                <p>录入产品名称、卖点、目标人群、使用场景。上传产品照片和风格参考图，生成笔记时自动带入产品上下文。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">✍️</div>
+                <h3>结果随心编辑</h3>
+                <p>标题、正文、标签可单独重写或换一批。支持划词局部重写，AI 配图 / 视频脚本一键生成。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🧠</div>
+                <h3>AI 笔记助手</h3>
+                <p>智能聊天助手随时解答创作问题。诊断 Agent 帮你分析笔记质量。支持多种 AI 服务商配置。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📖</div>
+                <h3>历史记录</h3>
+                <p>所有生成记录自动保存，支持一键回顾、复用过往创作。按时间排序查看，随时回顾灵感。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💡</div>
+                <h3>灵感板</h3>
+                <p>收藏优质标题、正文、标签。灵感分类管理：关键词、文案片段、灵感语录，生成时快速调用。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- PRIVACY HIGHLIGHT -->
+    <section class="privacy-section">
+        <div class="privacy-inner">
+            <h2>🔒 隐私安全</h2>
+            <p>我们深知你的创作内容非常珍贵。红书笔芯 采用本地优先架构，你的数据完全由你掌控。</p>
+            <ul class="privacy-list">
+                <li>所有创作数据存储在设备本地，不上传至任何服务器</li>
+                <li>Keychain 加密存储登录凭证</li>
+                <li>零服务器架构：数据不上传至任何开发者服务器</li>
+                <li>无第三方 SDK：不含任何追踪器或广告 SDK</li>
+            </ul>
+            <p>欲了解更多信息，请参阅我们的<a href="privacy.html">完整隐私政策</a>。</p>
+        </div>
+    </section>
+
+    <!-- DOWNLOAD CTA -->
+    <section class="download-cta">
+        <h2>开始你的 AI 创作之旅</h2>
+        <p>免费下载，无需注册，即刻开始创作高质量小红书笔记</p>
+        <a href="https://apps.apple.com/app/你的appid" target="_blank" class="btn btn-primary">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 21.99 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.1 22C7.79 22.05 6.8 20.68 5.96 19.47C4.25 16.56 2.94 11.3 4.7 7.72A5.85 5.85 0 019.43 7.21C10.55 7.2 11.55 7.92 12.15 7.92C12.74 7.92 13.93 7.02 15.24 7.18C15.86 7.21 17.63 7.47 18.83 9.11C18.74 9.18 16.38 10.54 16.4 13.47C16.44 17.22 19.7 18.35 19.73 18.37C19.7 18.45 19.24 19.33 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z"/></svg>
+            App Store 免费下载
+        </a>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <div>
+            <a href="index.html">首页</a>
+            <a href="support.html">技术支持</a>
+            <a href="privacy.html">隐私政策</a>
+        </div>
+        <p>© 2026 红书笔芯 (RedPulse). 保留所有权利。</p>
+    </footer>
+
+</body>
+</html>

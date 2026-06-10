@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>红书笔芯 - 生成结果</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+            background: #fafafa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .phone-frame {
+            width: 393px;
+            height: 852px;
+            background: #fafafa;
+            border-radius: 47px;
+            border: 3px solid #1a1a1a;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        }
+        .status-bar {
+            height: 54px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 0 30px 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #000;
+        }
+        .content {
+            padding: 0 16px;
+            height: calc(852px - 54px - 44px - 83px);
+            overflow: hidden;
+            padding-top: 8px;
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .result-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+        .result-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .result-action-btn {
+            padding: 4px 10px;
+            border-radius: 12px;
+            background: #f5f5f7;
+            font-size: 12px;
+            color: #555;
+        }
+        .result-card {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 0.5px solid rgba(0,0,0,0.06);
+        }
+        .result-card-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #FF2442;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .result-text {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.7;
+        }
+        .result-text .highlight {
+            color: #FF2442;
+            font-weight: 600;
+        }
+        .result-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .result-tag {
+            padding: 3px 10px;
+            border-radius: 12px;
+            background: #FFF0F2;
+            font-size: 12px;
+            color: #FF2442;
+        }
+        .result-image-placeholder {
+            width: 100%;
+            height: 180px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #ffecd2, #fcb69f);
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+        }
+        .rewrite-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .rewrite-btn {
+            padding: 6px 12px;
+            border-radius: 12px;
+            background: #FF2442;
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .rewrite-btn.secondary {
+            background: #f5f5f7;
+            color: #666;
+        }
+        .bottom-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 8px 16px 24px;
+            background: rgba(250,250,250,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            display: flex;
+            gap: 8px;
+        }
+        .bottom-btn {
+            flex: 1;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .bottom-btn.primary {
+            background: #FF2442;
+            color: white;
+        }
+        .bottom-btn.secondary {
+            background: white;
+            color: #333;
+            border: 0.5px solid rgba(0,0,0,0.1);
+        }
+        .tab-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 83px;
+            background: rgba(250,250,250,0.9);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            display: flex;
+            border-top: 0.5px solid rgba(0,0,0,0.08);
+        }
+        .tab-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            font-size: 10px;
+            color: #999;
+        }
+        .tab-item.active {
+            color: #FF2442;
+        }
+        .tab-icon {
+            font-size: 20px;
+        }
+        .selection-highlight {
+            background: rgba(255,36,66,0.12);
+            border-radius: 4px;
+            padding: 1px 2px;
+        }
+        .ai-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 8px;
+            border-radius: 8px;
+            background: #f5f5f7;
+            font-size: 11px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-frame">
+        <div class="status-bar">
+            <span>9:41</span>
+            <span>📶 🔋</span>
+        </div>
+        
+        <div class="content">
+            <div class="result-header">
+                <div class="result-title">✨ 生成结果</div>
+                <div class="result-actions">
+                    <div class="result-action-btn">📋 复制</div>
+                    <div class="result-action-btn">💾 收藏</div>
+                </div>
+            </div>
+            
+            <div class="result-card">
+                <div class="result-card-label">📌 标题</div>
+                <div class="result-text">
+                    <span class="highlight">熬夜党必看！这瓶精华让我皮肤发光✨</span>
+                </div>
+                <div class="rewrite-row">
+                    <div class="rewrite-btn">🔄 换一批</div>
+                    <div class="rewrite-btn secondary">✏️ 重写</div>
+                </div>
+            </div>
+            
+            <div class="result-card">
+                <div class="result-card-label">📝 正文</div>
+                <div class="result-text">
+                    作为一个资深<span class="highlight">熬夜党</span>，我真的被这瓶精华惊艳到了！用了两周，最明显的感受就是<span class="highlight">脸色不再蜡黄</span>，朋友都问我是不是去做了医美😂
+                    <br><br>
+                    质地非常<span class="highlight">清爽好吸收</span>，完全不粘腻！滴管设计很卫生，每次2-3滴就能涂满全脸。坚持用下来，毛孔都细腻了不少～
+                </div>
+                <div class="rewrite-row">
+                    <div class="rewrite-btn">🔄 换一批</div>
+                    <div class="rewrite-btn secondary">✏️ 重写</div>
+                </div>
+            </div>
+            
+            <div class="result-card">
+                <div class="result-card-label">🏷️ 标签</div>
+                <div class="result-tags">
+                    <div class="result-tag">#精华测评</div>
+                    <div class="result-tag">#熬夜急救</div>
+                    <div class="result-tag">#护肤分享</div>
+                    <div class="result-tag">#提亮肤色</div>
+                </div>
+            </div>
+            
+            <div class="result-card">
+                <div class="result-card-label">🎨 配图建议</div>
+                <div class="result-image-placeholder">📸</div>
+                <div class="ai-badge">由即梦AI 生成</div>
+            </div>
+        </div>
+        
+        <div class="bottom-bar">
+            <div class="bottom-btn secondary">📋 复制</div>
+            <div class="bottom-btn primary">📤 发布</div>
+        </div>
+        
+        <div class="tab-bar">
+            <div class="tab-item">
+                <div class="tab-icon">✨</div>
+                <span>生成</span>
+            </div>
+            <div class="tab-item">
+                <div class="tab-icon">📦</div>
+                <span>产品库</span>
+            </div>
+            <div class="tab-item">
+                <div class="tab-icon">📖</div>
+                <span>历史</span>
+            </div>
+            <div class="tab-item">
+                <div class="tab-icon">👤</div>
+                <span>我的</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

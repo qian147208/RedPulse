@@ -2,8 +2,8 @@
 //  AuthStore.swift
 //  RedPulse
 //
-//  Simplified: app is always "logged in" — no auth gate.
-//  Kept for backward compatibility with existing UI code that reads authStore.
+//  Stub for backward compatibility — the app has no authentication gate.
+//  All methods are no-ops; isLoggedIn always returns true.
 //
 
 import Foundation
@@ -26,6 +26,8 @@ final class AuthStore {
     init() {
         email = UserDefaults.standard.string(forKey: Self.emailKey) ?? ""
     }
+
+    // MARK: - Stub methods (no-op)
 
     func login(account: String, password: String) -> Bool { true }
     func enterGuestMode() {}

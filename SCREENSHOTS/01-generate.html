@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>红书笔芯 - 生成笔记</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+            background: #fafafa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .phone-frame {
+            width: 393px;
+            height: 852px;
+            background: #fafafa;
+            border-radius: 47px;
+            border: 3px solid #1a1a1a;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        }
+        .status-bar {
+            height: 54px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 0 30px 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #000;
+        }
+        .nav-bar {
+            padding: 8px 20px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .nav-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .nav-back {
+            font-size: 14px;
+            color: #FF2442;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .content {
+            padding: 0 16px;
+            height: calc(852px - 54px - 44px - 83px);
+            overflow: hidden;
+        }
+        .step-bar {
+            display: flex;
+            gap: 6px;
+            padding: 0 16px 16px;
+        }
+        .step-bar .dot {
+            height: 6px;
+            border-radius: 3px;
+            background: #e5e5ea;
+            flex: 1;
+        }
+        .step-bar .dot.active {
+            background: #FF2442;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 0.5px solid rgba(0,0,0,0.08);
+        }
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #1a1a1a;
+        }
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .product-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 4px;
+            border-radius: 12px;
+            background: #fafafa;
+            border: 0.5px solid rgba(0,0,0,0.06);
+        }
+        .product-item.selected {
+            background: #FFF0F2;
+            border: 1.5px solid #FF2442;
+        }
+        .product-img {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #ffecd2, #fcb69f);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .product-name {
+            font-size: 11px;
+            color: #333;
+            text-align: center;
+        }
+        .product-add {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            border: 1.5px dashed #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #999;
+        }
+        .ad-type-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .ad-type-item {
+            padding: 12px 8px;
+            border-radius: 12px;
+            text-align: center;
+            background: #fafafa;
+            border: 0.5px solid rgba(0,0,0,0.06);
+            font-size: 13px;
+            color: #333;
+        }
+        .ad-type-item.selected {
+            background: #FFF0F2;
+            border: 1.5px solid #FF2442;
+            color: #FF2442;
+            font-weight: 600;
+        }
+        .keyword-input {
+            width: 100%;
+            height: 80px;
+            border-radius: 12px;
+            border: 0.5px solid #e5e5ea;
+            padding: 12px;
+            font-size: 14px;
+            color: #333;
+            background: #fafafa;
+            resize: none;
+            line-height: 1.5;
+        }
+        .hint-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .hint-chip {
+            padding: 4px 10px;
+            border-radius: 12px;
+            background: #f5f5f7;
+            font-size: 12px;
+            color: #555;
+        }
+        .hint-chip.selected {
+            background: #FF2442;
+            color: white;
+        }
+        .bottom-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 8px 16px 24px;
+            background: rgba(250,250,250,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .generate-btn {
+            width: 100%;
+            height: 48px;
+            border-radius: 24px;
+            background: #FF2442;
+            color: white;
+            font-size: 17px;
+            font-weight: 600;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .tab-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 83px;
+            background: rgba(250,250,250,0.9);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            display: flex;
+            border-top: 0.5px solid rgba(0,0,0,0.08);
+        }
+        .tab-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            font-size: 10px;
+            color: #999;
+        }
+        .tab-item.active {
+            color: #FF2442;
+        }
+        .tab-icon {
+            font-size: 20px;
+        }
+        .quality-toggle {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            background: #f5f5f7;
+            font-size: 12px;
+        }
+        .quality-toggle .dot-indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 3px;
+            background: #FF2442;
+        }
+        .hero-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1a1a1a;
+            padding: 4px 16px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .hero-title .sparkle {
+            color: #FF2442;
+            font-size: 18px;
+        }
+        .section-header {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #1a1a1a;
+        }
+        .add-product-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+        }
+        .add-product-row .text {
+            font-size: 13px;
+            color: #999;
+        }
+        .add-product-row .icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 10px;
+            background: #FF2442;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-frame">
+        <div class="status-bar">
+            <span>9:41</span>
+            <span>📶 🔋</span>
+        </div>
+        
+        <div class="content">
+            <div class="hero-title">
+                <span>生成笔记<span class="sparkle"> ✨</span></span>
+                <div class="quality-toggle">
+                    <div class="dot-indicator"></div>
+                    <span>高质量</span>
+                </div>
+            </div>
+            
+            <div class="step-bar">
+                <div class="dot active"></div>
+                <div class="dot active"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+            
+            <div class="card">
+                <div class="section-header">📦 选择产品</div>
+                <div class="product-grid">
+                    <div class="product-item selected">
+                        <div class="product-img">🧴</div>
+                        <div class="product-name">精华液</div>
+                    </div>
+                    <div class="product-item selected">
+                        <div class="product-img">🧴</div>
+                        <div class="product-name">面霜</div>
+                    </div>
+                    <div class="product-item">
+                        <div class="product-img">💄</div>
+                        <div class="product-name">口红</div>
+                    </div>
+                    <div class="product-add">
+                        <span>+</span>
+                    </div>
+                </div>
+                <div class="add-product-row">
+                    <span class="text">点击选择产品或添加新产品</span>
+                    <div class="icon">+</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="section-header">🎯 广告类型</div>
+                <div class="ad-type-grid">
+                    <div class="ad-type-item selected">信息流广告</div>
+                    <div class="ad-type-item">搜索优化</div>
+                    <div class="ad-type-item">品牌故事</div>
+                    <div class="ad-type-item">带货转化</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="section-header">📝 关键词 & 提示</div>
+                <textarea class="keyword-input" readonly>熬夜急救、修护维稳、敏感肌适用</textarea>
+                <div class="hint-chips">
+                    <div class="hint-chip selected">测评向</div>
+                    <div class="hint-chip selected">干货风</div>
+                    <div class="hint-chip">轻松搞笑</div>
+                    <div class="hint-chip">好物分享</div>
+                    <div class="hint-chip">真实体验</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bottom-bar">
+            <div class="generate-btn">✨ AI 生成笔记</div>
+        </div>
+        
+        <div class="tab-bar">
+            <div class="tab-item active">
+                <div class="tab-icon">✨</div>
+                <span>生成</span>
+            </div>
+            <div class="tab-item">
+                <div class="tab-icon">📦</div>
+                <span>产品库</span>
+            </div>
+            <div class="tab-item">
+                <div class="tab-icon">📖</div>
+                <span>历史</span>
+            </div>
+            <div class="tab-item">
+                <div class="tab-icon">👤</div>
+                <span>我的</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
