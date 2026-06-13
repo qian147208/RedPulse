@@ -24,7 +24,7 @@ struct PublishPreviewView: View {
     /// true 时只渲染卡片本身（不带 ScrollView/导航标题/页面背景），便于嵌入 overlay。
     var chromeless: Bool = false
     /// 预览卡宽度。默认 375 与设计稿一致；嵌进 ResultView 时由调用方按列宽传入。
-    /// 最小限制 240pt（再小内部字号会挤死）
+    /// 最大不超过 420，防止在桌面端卡片过宽。
     var previewWidth: CGFloat = 375
 
     /// 评论区绑定的 record id。nil 时不渲染评论区（兼容老调用方）
@@ -37,6 +37,10 @@ struct PublishPreviewView: View {
     var onApplySuggestion: ((NoteComment) -> Void)? = nil
     /// 点 "忽略" 时回调
     var onIgnoreSuggestion: ((NoteComment) -> Void)? = nil
+    /// 点 "让AI帮我点评" 时回调
+    var onStartDiagnose: (() -> Void)? = nil
+    /// 诊断/回复失败时显示错误信息
+    var diagnoseError: String? = nil
 
     /// 媒体区高度（保持 3:4 竖屏比例）
     private var mediaHeight: CGFloat { previewWidth * 500.0 / 375.0 }
@@ -541,6 +545,10 @@ struct PublishPreviewView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(Color.ink4)
                     }
+                } else if let error = diagnoseError {
+                    Text(error)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.red)
                 } else {
                     Text("· AI 在帮你点评")
                         .font(.system(size: 11))
@@ -551,19 +559,25 @@ struct PublishPreviewView: View {
 
             // 空状态（更紧凑，减少太空感）
             if liveComments.isEmpty && !isDiagnosing {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.ink4)
-                    Text("还没有点评 · 点上方 \"让 AI 帮我点评\" 触发")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.ink4)
+                Button {
+                    onStartDiagnose?()
+                } label: {
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12))
+                        Text("让 AI 帮我点评")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(Color.brand)
+                    .padding(.vertical, Spacing.xs)
+                    .padding(.horizontal, Spacing.sm)
+                    .background(Color.brandSoft, in: Capsule())
                 }
-                .padding(.vertical, Spacing.xs)
+                .buttonStyle(.plain)
             }
 
-            ForEach(liveComments) { c in
-                commentRow(c)
+            ForEach(Array(liveComments.enumerated()), id: \.element.id) { _, c in
+                commentRow(c, isLastAndDiagnosing: isDiagnosing && c === liveComments.last)
             }
 
             // 用户输入框
@@ -572,7 +586,7 @@ struct PublishPreviewView: View {
         }
     }
 
-    private func commentRow(_ c: NoteComment) -> some View {
+    private func commentRow(_ c: NoteComment, isLastAndDiagnosing: Bool = false) -> some View {
         let isAI = c.role == .ai
         return HStack(alignment: .top, spacing: Spacing.sm) {
             // 头像
@@ -615,11 +629,19 @@ struct PublishPreviewView: View {
                     }
                 }
 
-                Text(c.body)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.ink)
-                    .lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
+                // Show typing indicator for last AI comment while diagnosing
+                if isLastAndDiagnosing {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("AI 正在思考…").font(.system(size: 12)).foregroundStyle(Color.ink4)
+                    }
+                } else {
+                    Text(c.body)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.ink)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 if isAI && c.suggestion != nil && c.suggestionStatus == .pending {
                     HStack(spacing: 6) {

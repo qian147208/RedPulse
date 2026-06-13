@@ -17,7 +17,7 @@ struct ResultView: View {
     let fromHistory: Bool
     let adType: String?
 
-    @State private var editorFraction: CGFloat = 0.5
+    @State private var editorFraction: CGFloat = 0.4
 
     /// Result display mode (edit vs. preview) — used on iPhone
     enum ResultMode: String, CaseIterable {
@@ -47,11 +47,27 @@ struct ResultView: View {
     @State private var imageCount: Int = 1
     @State private var isPreparingPrompts: Bool = false
     @State private var showPreviewHighlight: Bool = false
+    /// 全屏查看小红书预览（RedNoteReaderView）
+    @State private var showPhonePreview: Bool = false
     @State private var aiAssistantScrollTrigger: Int = 0
 
     // MARK: - AI Assistant
     @State private var diagnosticAgent: DiagnosticAgent? = nil
     @State private var selectionToolbarVM: SelectionToolbarViewModel
+    @State private var triggerDiagnose: Bool = false
+
+    private func handleDiagnose() {
+        triggerDiagnose = true
+        Task {
+            await diagnosticAgent?.diagnose(record: record)
+            await MainActor.run {
+                triggerDiagnose = false
+                if let error = diagnosticAgent?.lastError {
+                    popToast(error)
+                }
+            }
+        }
+    }
 
     // MARK: - Copy / Toast / Undo
     @State private var undo: ResultUndoSnapshot? = nil
@@ -94,15 +110,35 @@ struct ResultView: View {
         #endif
     }
 
-    private var isDualPanel: Bool {
+    // MARK: - Layout
+
+    /// Whether to use the 3-pane layout (文案 + drag handle + AI tools).
+    /// macOS always uses it. iPad (regular width) uses it. iPhone uses single-column.
+    private var shouldUseTripane: Bool {
         #if os(macOS)
-        return false
-        #else
-        let w = 1100
+        return true
+        #elseif os(iOS)
         if #available(iOS 16.0, *) {
             return UITraitCollection.current.horizontalSizeClass == .regular
         }
+        return false
+        #else
         return true
+        #endif
+    }
+
+    /// Whether to show the edit/preview segmented picker.
+    /// Only shown in single-column mode (iPhone). On wide screens the mode switch is in topToolbar.
+    private var shouldShowModePicker: Bool {
+        #if os(macOS)
+        return false
+        #elseif os(iOS)
+        if #available(iOS 16.0, *) {
+            return UITraitCollection.current.horizontalSizeClass == .compact
+        }
+        return false
+        #else
+        return false
         #endif
     }
 
@@ -112,23 +148,34 @@ struct ResultView: View {
         VStack(spacing: 0) {
             topToolbar
 
-            if isDualPanel {
-                if resultMode == .edit {
-                    GeometryReader { geo in
-                        if shouldUseTripane {
-                            tripaneContent(totalWidth: geo.size.width)
-                        } else {
-                            dualPanelContent(totalWidth: geo.size.width)
-                        }
+            if shouldShowModePicker {
+                // iPhone: single-column with edit/preview toggle
+                VStack(spacing: 0) {
+                    Picker("模式", selection: $resultMode) {
+                        Label("编辑", systemImage: "pencil").tag(ResultMode.edit)
+                        Label("预览", systemImage: "eye").tag(ResultMode.preview)
                     }
-                } else {
-                    previewPanel
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, Adaptive.horizontalPageMargin)
+                    .padding(.vertical, Spacing.md)
+
+                    if resultMode == .edit {
+                        editorPanel
+                    } else {
+                        previewPanel
+                    }
                 }
+                .background(Color.bg.ignoresSafeArea())
+            } else if resultMode == .edit {
+                // Wide screens: tri-pane layout
+                GeometryReader { geo in
+                    tripaneContent(totalWidth: geo.size.width)
+                }
+                .background(Color.bg.ignoresSafeArea())
             } else {
-                tabbedLayout
+                previewPanel
             }
         }
-        .background(Color.bg.ignoresSafeArea())
         .overlay(alignment: .bottom) {
             notificationsOverlay
         }
@@ -147,6 +194,40 @@ struct ResultView: View {
                 #if os(iOS)
                 PackageShareSheet(items: [url])
                 #endif
+            }
+        }
+        .overlay {
+            if showPhonePreview {
+                ZStack {
+                    Color.black.opacity(0.35).ignoresSafeArea().onTapGesture { showPhonePreview = false }
+                    RedNoteReaderView(
+                        currentRecord: fromHistory ? nil : record,
+                        noteTitle: record.noteTitle,
+                        content: record.content,
+                        tags: record.tags,
+                        imageUrls: effectiveImageURLs,
+                        videoUrl: effectiveVideoURL,
+                        adType: record.adType,
+                        currentRecordId: record.id,
+                        isDiagnosing: diagnosticAgent?.isDiagnosing ?? false,
+                        onSendComment: { text in
+                            await diagnosticAgent?.sendUserMessage(text, replyTo: nil, record: record)
+                        },
+                        onApplySuggestion: { comment in
+                            diagnosticAgent?.applySuggestion(from: comment, to: record)
+                            popToast("已应用 AI 建议")
+                        },
+                        onIgnoreSuggestion: { comment in
+                            diagnosticAgent?.ignoreSuggestion(on: comment)
+                        },
+                        onStartDiagnose: {
+                            handleDiagnose()
+                        },
+                        triggerDiagnose: false
+                    )
+                    .transition(.scale.combined(with: .opacity))
+                }
+                .animation(.easeOut(duration: 0.2), value: showPhonePreview)
             }
         }
     }
@@ -221,6 +302,19 @@ struct ResultView: View {
                 Image(systemName: "pencil.circle")
                     .font(.system(size: 16))
                     .foregroundStyle(Color.ink3)
+            }
+            .buttonStyle(.plain)
+
+            // Phone preview
+            Button {
+                showPhonePreview = true
+            } label: {
+                Image(systemName: "iphone")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Color.ink3)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.surfaceMuted, in: Capsule())
             }
             .buttonStyle(.plain)
 
@@ -299,14 +393,6 @@ struct ResultView: View {
     }
 
     // MARK: - Layout
-
-    private var shouldUseTripane: Bool {
-        #if os(macOS)
-        return true
-        #else
-        return false
-        #endif
-    }
 
     private func tripaneContent(totalWidth: CGFloat) -> some View {
         let gap = ResultLayoutConstants.columnGap
@@ -393,7 +479,11 @@ struct ResultView: View {
             },
             onIgnoreSuggestion: { comment in
                 diagnosticAgent?.ignoreSuggestion(on: comment)
-            }
+            },
+            onStartDiagnose: {
+                handleDiagnose()
+            },
+            diagnoseError: diagnosticAgent?.lastError,
         )
     }
 
@@ -431,28 +521,6 @@ struct ResultView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var tabbedLayout: some View {
-        VStack(spacing: 0) {
-            Picker("模式", selection: $resultMode) {
-                Label("编辑", systemImage: "pencil").tag(ResultMode.edit)
-                Label("预览", systemImage: "eye").tag(ResultMode.preview)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, Adaptive.horizontalPageMargin)
-            .padding(.vertical, Spacing.md)
-
-            if resultMode == .edit {
-                editorPanel
-            } else {
-                previewPanel
-            }
-        }
-        .background(Color.surfaceMuted.ignoresSafeArea())
-        .overlay(alignment: .bottom) {
-            notificationsOverlay
-        }
-    }
-
     // MARK: - Editor Panel
 
     private var editorPanel: some View {
@@ -484,11 +552,7 @@ struct ResultView: View {
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: Spacing.lg) {
-                        aiToolInner
-
-                        Divider()
-
-                        previewWithComments(previewWidth: max(geo.size.width - Adaptive.horizontalPageMargin * 2, 320))
+                        previewWithComments(previewWidth: min(max(geo.size.width - Adaptive.horizontalPageMargin * 2, 320), 420))
                             .clipShape(RoundedRectangle(cornerRadius: Radius.md))
                             .overlay(
                                 RoundedRectangle(cornerRadius: Radius.md)
@@ -714,85 +778,268 @@ struct ResultView: View {
 
     @State private var galleryPageIndex: Int = 0
 
+    /// 仅展示图片（不含顶部控制栏，控制栏在 imageGenSection 中统一显示）
     private var imageGallery: some View {
         let count = effectiveImageURLs.count
-        return VStack(alignment: .leading, spacing: Spacing.sm) {
-            if count > 1 {
-                HStack(spacing: 4) {
-                    Spacer()
-                    ForEach(0..<count, id: \.self) { i in
-                        Circle()
-                            .fill(i == galleryPageIndex ? Color.brand : Color.ink4)
-                            .frame(width: 6, height: 6)
-                    }
-                    Spacer()
-                }
-            }
-
-            TabView(selection: $galleryPageIndex) {
-                ForEach(Array(effectiveImageURLs.enumerated()), id: \.offset) { i, url in
-                    VStack(spacing: Spacing.sm) {
-                        AsyncImage(url: URL.safeURL(from: url)) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image.resizable().aspectRatio(contentMode: .fill)
-                                    .frame(width: 320, height: 427)
-                                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-                            case .failure:
-                                Rectangle().fill(Color.surfaceMuted).frame(width: 320, height: 427)
-                                    .overlay(VStack(spacing: 4) {
-                                        Image(systemName: "photo.badge.exclamationmark").font(.system(size: 22))
-                                        Text("加载失败").font(Typography.caption)
-                                    }.foregroundStyle(Color.ink3))
-                                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-                            case .empty:
-                                Rectangle().fill(Color.surfaceMuted).frame(width: 320, height: 427)
-                                    .overlay(ProgressView())
-                                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-                            @unknown default: EmptyView()
-                            }
-                        }
-                        .gesture(
-                            DragGesture(minimumDistance: 15)
-                                .onEnded { value in
-                                    guard count > 1 else { return }
-                                    if value.translation.width < -40 {
-                                        withAnimation { galleryPageIndex = min(galleryPageIndex + 1, count - 1) }
-                                    } else if value.translation.width > 40 {
-                                        withAnimation { galleryPageIndex = max(galleryPageIndex - 1, 0) }
-                                    }
-                                }
-                        )
-                        .contextMenu {
-                            Button { ResultCopyHelper.copyStringToClipboard(url); popToast("已复制图片链接") } label: { Label("复制图片链接", systemImage: "link") }
-                            Button { Task { await ResultSaveHelper.saveImage(url: url, onPopToast: popToast) } } label: { Label("保存到本地", systemImage: "square.and.arrow.down") }
-                        }
-
-                        HStack(spacing: Spacing.sm) {
-                            Button { ResultCopyHelper.copyStringToClipboard(url); popToast("已复制图片链接") } label: {
-                                Label("复制链接", systemImage: "link")
-                                    .frame(maxWidth: .infinity).frame(height: 48)
-                                    .background(Color.surfaceMuted).foregroundStyle(Color.ink2)
-                                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-                                    .overlay(RoundedRectangle(cornerRadius: Radius.md).stroke(Color.border, lineWidth: BorderWidth.hairline))
-                            }.buttonStyle(.plain)
-                            Button { Task { await ResultSaveHelper.saveImage(url: url, onPopToast: popToast) } } label: {
-                                Label("保存", systemImage: "square.and.arrow.down")
-                                    .frame(maxWidth: .infinity).frame(height: 48)
-                                    .background(Color.brand).foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-                            }.buttonStyle(.plain)
+        return VStack(alignment: .leading, spacing: Spacing.md) {
+            // Image thumbnails strip (horizontal, scrollable)
+            if count > 0 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(Array(effectiveImageURLs.enumerated()), id: \.offset) { i, url in
+                            thumbnailButton(url: url, index: i, totalCount: count)
                         }
                     }
-                    .tag(i)
                 }
+                .frame(height: 80)
             }
-            #if os(iOS)
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            #endif
-            .frame(height: 427 + 60)
+
+            // Large preview of selected image
+            if count > 0 {
+                largeImagePreview(
+                    url: effectiveImageURLs[galleryPageIndex],
+                    index: galleryPageIndex,
+                    count: count
+                )
+            } else if isPreparingPrompts {
+                generatingStatus("正在为 \(imageCount) 张图扩出不同的提示词...")
+            } else if jimengService.isGeneratingImage {
+                generatingStatus(imageCount > 1 ? "正在并行生成 \(imageCount) 张配图..." : "正在生成配图...")
+            } else if let error = jimengService.imageError {
+                errorHint(error)
+            }
 
             aiAnnotation("图片由AI生成")
+        }
+    }
+
+    private func thumbnailButton(url: String, index: Int, totalCount: Int) -> some View {
+        let isSelected = galleryPageIndex == index
+        return Button {
+            HapticManager.lightImpact()
+            withAnimation(.spring(duration: 0.2, bounce: 0.2)) {
+                galleryPageIndex = index
+            }
+        } label: {
+            AsyncImage(url: URL.safeURL(from: url)) { phase in
+                Group {
+                    switch phase {
+                    case .success(let img):
+                        img.resizable()
+                            .scaledToFill()
+                            .frame(width: 64, height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    case .failure:
+                        Image(systemName: "photo.badge.exclamationmark")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.ink3)
+                    case .empty:
+                        Image(systemName: "photo")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.ink4)
+                    @unknown default:
+                        Image(systemName: "photo")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.ink4)
+                    }
+                }
+                .padding(2)
+                .background(isSelected ? Color.brandSoft : Color.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(isSelected ? Color.brand : Color.clear, lineWidth: 2)
+                )
+                .shadow(color: isSelected ? Color.brand.opacity(0.15) : Color.clear, radius: 4)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func largeImagePreview(url: String, index: Int, count: Int) -> some View {
+        VStack(spacing: Spacing.md) {
+            // Image with elegant overlay navigation
+            if count > 1 {
+                ZStack(alignment: .center) {
+                    // Main image
+                    AsyncImage(url: URL.safeURL(from: url)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 420)
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                        case .failure:
+                            Rectangle()
+                                .fill(Color.surfaceMuted)
+                                .frame(height: 420)
+                                .overlay(
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "photo.badge.exclamationmark")
+                                            .font(.system(size: 48, weight: .light))
+                                            .foregroundStyle(Color.ink4)
+                                        Text("图片加载失败").font(Typography.bodySmall).foregroundStyle(Color.ink3)
+                                        Text("链接可能已过期").font(Typography.caption).foregroundStyle(Color.ink4)
+                                    }
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                        case .empty:
+                            Rectangle()
+                                .fill(Color.surfaceMuted)
+                                .frame(height: 420)
+                                .overlay(ProgressView())
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    .contextMenu {
+                        Button { ResultCopyHelper.copyStringToClipboard(url); popToast("已复制图片链接") } label: {
+                            Label("复制图片链接", systemImage: "link")
+                        }
+                        Button { Task { await ResultSaveHelper.saveImage(url: url, onPopToast: popToast) } } label: {
+                            Label("保存到本地", systemImage: "square.and.arrow.down")
+                        }
+                    }
+
+                    // Left arrow overlay — visible circle button
+                    Button {
+                        HapticManager.lightImpact()
+                        withAnimation(.spring(duration: 0.2, bounce: 0.2)) {
+                            galleryPageIndex = (galleryPageIndex - 1 + count) % count
+                        }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.45))
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 8)
+
+                    // Right arrow overlay — visible circle button
+                    Button {
+                        HapticManager.lightImpact()
+                        withAnimation(.spring(duration: 0.2, bounce: 0.2)) {
+                            galleryPageIndex = (galleryPageIndex + 1) % count
+                        }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.45))
+                    )
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 8)
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 50)
+                        .onEnded { value in
+                            if value.translation.width < -50 {
+                                withAnimation { galleryPageIndex = (galleryPageIndex + 1) % count }
+                            } else if value.translation.width > 50 {
+                                withAnimation { galleryPageIndex = (galleryPageIndex - 1 + count) % count }
+                            }
+                        }
+                )
+
+                // Page dot indicator below the image
+                HStack(spacing: 8) {
+                    ForEach(0..<count, id: \.self) { i in
+                        Circle()
+                            .fill(galleryPageIndex == i ? Color.brand : Color.gray.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                    }
+                }
+            } else {
+                // Single image (no navigation)
+                ZStack(alignment: .topTrailing) {
+                    AsyncImage(url: URL.safeURL(from: url)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 420)
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                        case .failure:
+                            Rectangle()
+                                .fill(Color.surfaceMuted)
+                                .frame(height: 420)
+                                .overlay(
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "photo.badge.exclamationmark")
+                                            .font(.system(size: 48, weight: .light))
+                                            .foregroundStyle(Color.ink4)
+                                        Text("图片加载失败").font(Typography.bodySmall).foregroundStyle(Color.ink3)
+                                        Text("链接可能已过期").font(Typography.caption).foregroundStyle(Color.ink4)
+                                    }
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                        case .empty:
+                            Rectangle()
+                                .fill(Color.surfaceMuted)
+                                .frame(height: 420)
+                                .overlay(ProgressView())
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    .contextMenu {
+                        Button { ResultCopyHelper.copyStringToClipboard(url); popToast("已复制图片链接") } label: {
+                            Label("复制图片链接", systemImage: "link")
+                        }
+                        Button { Task { await ResultSaveHelper.saveImage(url: url, onPopToast: popToast) } } label: {
+                            Label("保存到本地", systemImage: "square.and.arrow.down")
+                        }
+                    }
+                }
+            }
+
+            // Action buttons
+            HStack(spacing: Spacing.sm) {
+                Button {
+                    ResultCopyHelper.copyStringToClipboard(url)
+                    popToast("已复制图片链接")
+                } label: {
+                    Label("复制链接", systemImage: "link")
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color.surfaceMuted)
+                        .foregroundStyle(Color.ink2)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.md).stroke(Color.border, lineWidth: BorderWidth.hairline))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    Task { await ResultSaveHelper.saveImage(url: url, onPopToast: popToast) }
+                } label: {
+                    Label("保存", systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color.brand)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -1055,7 +1302,7 @@ struct ResultView: View {
             isEdited: false,
             createdAt: Date()
         )
-        modelContext.insert(newRecord)
+        repository.saveRecord(newRecord)
         record = newRecord
         cloneCreated = true
     }
@@ -1089,7 +1336,7 @@ struct ResultView: View {
         await jimengService.generateImages(prompts: prompts, referenceImagesData: referenceImages)
         if !jimengService.generatedImageURLs.isEmpty {
             record.imageUrls = jimengService.generatedImageURLs
-            try? modelContext.save()
+            repository.saveRecord(record)
             await MainActor.run {
                 popToast("⬇ 已带入预览")
                 showPreviewHighlight = true
@@ -1106,7 +1353,7 @@ struct ResultView: View {
         await jimengService.generateVideo(prompt: record.videoPrompt, referenceImageURLs: effectiveImageURLs)
         if let url = jimengService.generatedVideoURL {
             record.videoUrl = url
-            try? modelContext.save()
+            repository.saveRecord(record)
             await MainActor.run {
                 popToast("⬇ 已带入预览")
                 showPreviewHighlight = true
@@ -1130,7 +1377,7 @@ struct ResultView: View {
             )
             await MainActor.run {
                 record.imagePrompt = prompt
-                try? modelContext.save()
+                repository.saveRecord(record)
                 popToast("配图提示词已生成")
             }
         } catch {
@@ -1220,7 +1467,7 @@ struct ResultView: View {
                             hotScore: resp.hotScore,
                             suggestion: resp.suggestion
                         )
-                        modelContext.insert(newRecord)
+                        repository.saveRecord(newRecord)
                         self.record = newRecord
                     }
                     self.isGenerating = false

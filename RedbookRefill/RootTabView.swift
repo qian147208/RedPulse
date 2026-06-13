@@ -194,6 +194,7 @@ struct RootTabView: View {
                 sidebarSelection = tab
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
 

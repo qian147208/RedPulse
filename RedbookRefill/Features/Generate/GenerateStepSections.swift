@@ -17,8 +17,8 @@ struct GenerateStepStep1Product: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Product.createdAt, order: .reverse) private var products: [Product]
 
-    @State private var selectedProduct: Product? = nil
-    @State private var keyword: String = ""
+    @Binding var selectedProduct: Product?
+    @Binding var keyword: String
     @Binding var isGenerating: Bool
 
     @ScaledMetric private var thumbSize: CGFloat = 72
@@ -296,6 +296,7 @@ struct GenerateStepStep3Keyword: View {
     @Binding var isLoadingTrending: Bool
     @Binding var showInspirationPicker: Bool
     @Binding var inspirationPickerType: InspirationType
+    @Binding var trendingKeywordsToken: Int
 
     @State private var keywordEditorText: String = ""
 
@@ -313,6 +314,22 @@ struct GenerateStepStep3Keyword: View {
                     stepBadge(3, active: !isCollapsed)
                     Text("产品关键词").editorialLabel()
                     Spacer()
+                    if !isCollapsed {
+                        if isLoadingTrending {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Button {
+                                trendingKeywordsToken += 1
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Color.brand)
+                                    .frame(width: 32, height: 32)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.ink3)
@@ -468,24 +485,13 @@ struct GenerateStepStep3Keyword: View {
             HStack {
                 Text("热门关键词").editorialLabel()
                 Spacer()
-                if isLoadingTrending {
+                if trendingKeywords.isEmpty && !isLoadingTrending {
                     ProgressView().controlSize(.small)
-                } else {
-                    Button {
-                        Task { /* trigger fetch from parent */ }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.brand)
-                            .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
                 }
             }
 
             if trendingKeywords.isEmpty && !isLoadingTrending {
-                Text("暂无热门关键词，请稍后刷新")
+                Text("暂无热门关键词，请刷新")
                     .font(Typography.caption)
                     .foregroundStyle(Color.ink4)
             } else {

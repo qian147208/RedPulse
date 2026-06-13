@@ -483,22 +483,24 @@ struct GlassButtonStyle: ButtonStyle {
 /// Interactive modifier for custom glass elements — adds press scale + glow
 /// animation without full button styling.
 struct InteractiveGlassModifier: ViewModifier {
-    @State private var isPressed = false
+    @State private var isHovered = false
 
     func body(content: Content) -> some View {
         content
-            .scaleEffect(isPressed ? 0.97 : 1.0)
+            .scaleEffect(isHovered ? 0.97 : 1.0)
             .overlay {
-                if isPressed {
+                if isHovered {
                     RoundedRectangle(cornerRadius: GlassMetrics.glassRadius, style: .continuous)
                         .fill(Color.glassGlow)
                         .allowsHitTesting(false)
                 }
             }
-            .animation(.spring(response: 0.2, dampingFraction: 0.65), value: isPressed)
-            .onLongPressGesture(minimumDuration: 0.0, pressing: { pressing in
-                isPressed = pressing
-            }, perform: {})
+            .animation(.spring(response: 0.2, dampingFraction: 0.65), value: isHovered)
+            .onHover { hovering in
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.65)) {
+                    isHovered = hovering
+                }
+            }
     }
 }
 

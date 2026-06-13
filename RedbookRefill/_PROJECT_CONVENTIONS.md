@@ -33,9 +33,7 @@ RedbookRefill/RedbookRefill/
 │   ├── Feedback.swift               # @Model
 │   └── AdType.swift                 # enum
 ├── Data/                            # Agent 1
-│   ├── Repository.swift             # 唯一持有 ModelContext
-│   ├── AuthStore.swift              # Keychain + UserDefaults
-│   └── KeychainHelper.swift
+│   └── Repository.swift             # 唯一持有 ModelContext
 ├── Network/                         # Agent 1
 │   ├── APIClient.swift              # 网络层
 │   ├── MockGenerator.swift          # Mock 模式（首版用）
@@ -91,24 +89,7 @@ final class Repository {
 }
 ```
 
-### AuthStore 接口
-
-```swift
-@Observable
-final class AuthStore {
-    var isLoggedIn: Bool
-    var isGuest: Bool
-    var guestGenerationCount: Int  // 累计生成次数，上限 3
-
-    func login(account: String, password: String) -> Bool  // 默认账号 10000000000/000000
-    func enterGuestMode()
-    func incrementGuestCount()
-    func canGuestGenerate() -> Bool  // count < 3
-    func logout()
-}
-```
-
-### APIClient + MockGenerator
+### GeneratorProtocol + APIClient
 
 ```swift
 struct GenerateRequest {
@@ -158,18 +139,19 @@ enum AdType: String, CaseIterable, Codable {
 
 ```swift
 extension Color {
-    static let brand = Color(red: 1.0, green: 0.141, blue: 0.259)  // #FF2442
-    static let brandSoft = Color(red: 1.0, green: 0.91, blue: 0.925) // #FFE8EC
-    static let ink = Color(red: 0.102, green: 0.102, blue: 0.102)   // #1A1A1A
-    static let ink2 = Color(red: 0.333, green: 0.333, blue: 0.333)  // #555
-    static let ink3 = Color(red: 0.6, green: 0.6, blue: 0.6)        // #999
-    static let bg = Color(red: 0.996, green: 0.976, blue: 0.961)    // #FEF9F5
-    static let surface = Color.white
-    static let suggestionBlue = Color(red: 0.231, green: 0.510, blue: 0.965) // #3B82F6
-    static let suggestionBg = Color(red: 0.902, green: 0.941, blue: 1.0)     // #E6F0FF
+    static let brand = Color(red: 1.0, green: 0.141, blue: 0.259)  // #FF2442 (light) / #FF4D6A (dark)
+    static let brandSoft = Color(red: 1.0, green: 0.94, blue: 0.95) // #FFF0F2 (light) / #3D1520 (dark)
+    static let ink = Color(red: 0.0, green: 0.0, blue: 0.0)         // #000000 (light) / #FFFFFF (dark)
+    static let ink2 = Color(red: 0.235, green: 0.235, blue: 0.263)  // #3C3C43 (light) / #EBEBF5 (dark)
+    static let ink3 = Color(red: 0.235, green: 0.235, blue: 0.263)  // alpha 0.6 (light) / alpha 0.6 (dark)
+    static let bg = Color(red: 0.949, green: 0.949, blue: 0.969)    // #F2F2F7 (light) / #000000 (dark)
+    static let surface = Color.white                                 // #FFFFFF (light) / #1C1C1E (dark)
+    static let suggestionBlue = Color(red: 0.137, green: 0.310, blue: 0.580) // #234E94 (light) / #58A6FF (dark)
+    static let suggestionBg = Color(red: 0.941, green: 0.961, blue: 0.988)    // #F0F5FC (light) / #0D1D30 (dark)
 }
 
 enum Spacing {
+    static let xxs: CGFloat = 2
     static let xs: CGFloat = 4
     static let sm: CGFloat = 8
     static let md: CGFloat = 12
@@ -178,9 +160,10 @@ enum Spacing {
 }
 
 enum Radius {
-    static let sm: CGFloat = 10
-    static let md: CGFloat = 14
-    static let lg: CGFloat = 20
+    static let xs: CGFloat = 4
+    static let sm: CGFloat = 8
+    static let md: CGFloat = 10
+    static let lg: CGFloat = 12
 }
 ```
 

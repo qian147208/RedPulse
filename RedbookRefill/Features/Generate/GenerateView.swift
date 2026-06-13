@@ -53,6 +53,7 @@ struct GenerateView: View {
     }
 
     @State private var refreshHintsToken: Int = 0
+    @State private var trendingKeywordsToken: Int = 0
 
     var body: some View {
         if let record = generatedRecord {
@@ -76,6 +77,8 @@ struct GenerateView: View {
     private var formCard: some View {
         VStack(spacing: Spacing.lg) {
             GenerateStepStep1Product(
+                selectedProduct: $selectedProduct,
+                keyword: $keyword,
                 isGenerating: $isGenerating
             )
             .cardStyle(padding: 0, radius: Radius.lg)
@@ -92,7 +95,8 @@ struct GenerateView: View {
                 trendingKeywords: $trendingKeywords,
                 isLoadingTrending: $isLoadingTrending,
                 showInspirationPicker: $showInspirationPicker,
-                inspirationPickerType: $inspirationPickerType
+                inspirationPickerType: $inspirationPickerType,
+                trendingKeywordsToken: $trendingKeywordsToken
             )
             .cardStyle(padding: 0, radius: Radius.lg)
             .coachMarkTarget("gen_keyword")
@@ -256,6 +260,9 @@ struct GenerateView: View {
         .onChange(of: refreshHintsToken) { _, _ in
             Task { await fetchHintChipsFromLLM() }
         }
+        .onChange(of: trendingKeywordsToken) { _, _ in
+            Task { await fetchTrendingKeywords() }
+        }
     }
 
     // MARK: - Helpers
@@ -265,18 +272,22 @@ struct GenerateView: View {
         isLoadingTrending = true
         defer { isLoadingTrending = false }
 
-        if let llmKeywords = await GenerationHelpers.fetchKeywordsFromLLM(
+        let keywords = await GenerationHelpers.fetchKeywordsFromLLM(
             product: selectedProduct,
             keyword: keyword
-        ) {
-            trendingKeywords = llmKeywords
-        } else {
-            trendingKeywords = [
-                "早八通勤穿搭", "氛围感妆容", "平价替代",
-                "沉浸式回家", "独居vlog", "减脂餐",
-                "职场干货", "好物合集", "换季护肤",
-                "旅行攻略", "咖啡日记", "穿搭灵感"
-            ]
+        )
+
+        await MainActor.run {
+            if let llmKeywords = keywords {
+                trendingKeywords = llmKeywords
+            } else {
+                trendingKeywords = [
+                    "早八通勤穿搭", "氛围感妆容", "平价替代",
+                    "沉浸式回家", "独居vlog", "减脂餐",
+                    "职场干货", "好物合集", "换季护肤",
+                    "旅行攻略", "咖啡日记", "穿搭灵感"
+                ]
+            }
         }
     }
 

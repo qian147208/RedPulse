@@ -38,6 +38,7 @@ struct RedNoteReaderView: View {
     var onIgnoreSuggestion: ((NoteComment) -> Void)? = nil
     var onStartDiagnose: (() -> Void)? = nil
     var triggerDiagnose: Bool = false
+    var diagnoseError: String? = nil
 
     @State private var selectedTab: ReaderTab = .preview
     @State private var slotPosition: Int = 0
@@ -431,8 +432,51 @@ struct RedNoteReaderView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("评论 \(liveComments.count + 88)").font(Typography.label).foregroundStyle(Color.ink)
-                if isDiagnosing { HStack(spacing: 4) { ProgressView().controlSize(.mini); Text("AI 分析…").font(.system(size: 12)).foregroundStyle(Color.ink4) } }
+                if isDiagnosing {
+                    HStack(spacing: 4) {
+                        ProgressView().controlSize(.mini)
+                        Text("AI 分析…").font(.system(size: 12)).foregroundStyle(Color.ink4)
+                    }
+                } else if let error = diagnoseError {
+                    Text(error).font(.system(size: 12)).foregroundStyle(Color.red)
+                } else {
+                    Text("· AI 在帮你点评").font(.system(size: 12)).foregroundStyle(Color.ink4)
+                }
                 Spacer()
+                if liveComments.isEmpty && !isDiagnosing {
+                    Button {
+                        onStartDiagnose?()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 11))
+                            Text("AI 点评")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(Color.brand)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 10)
+                        .background(Color.brandSoft, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if liveComments.isEmpty && !isDiagnosing {
+                Button {
+                    onStartDiagnose?()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12))
+                        Text("让 AI 帮我点评")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(Color.brand)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                    .background(Color.brandSoft, in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
             commentRow(avatar: "😊", name: "美妆控小A", body: "这个也太好用了吧！种草了种草了🌿", time: "2小时前", likes: "32", isAI: false)
             ForEach(liveComments) { c in

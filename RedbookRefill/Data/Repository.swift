@@ -46,9 +46,16 @@ final class Repository {
         }
     }
 
-    func deleteProduct(_ p: Product) {
+    @discardableResult
+    func deleteProduct(_ p: Product) -> Bool {
         modelContext.delete(p)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            log.error("Failed to delete product \\(p.name): \\(error.localizedDescription)")
+            return false
+        }
     }
 
     // MARK: - Records
@@ -75,24 +82,46 @@ final class Repository {
         }
     }
 
-    func deleteRecord(_ r: GenerationRecord) {
+    @discardableResult
+    func deleteRecord(_ r: GenerationRecord) -> Bool {
         modelContext.delete(r)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            log.error("Failed to delete record: \\(error.localizedDescription)")
+            return false
+        }
     }
 
-    func clearAllRecords() {
+    @discardableResult
+    func clearAllRecords() -> Bool {
         let records = allRecords()
         for r in records {
             modelContext.delete(r)
         }
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            log.error("Failed to clear all records: \\(error.localizedDescription)")
+            return false
+        }
     }
 
     // MARK: - Feedback
 
-    func saveFeedback(_ f: Feedback) {
+    @discardableResult
+    func saveFeedback(_ f: Feedback) -> Bool {
         modelContext.insert(f)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+            log.info("Feedback saved")
+            return true
+        } catch {
+            log.error("Failed to save feedback: \\(error.localizedDescription)")
+            return false
+        }
     }
 
     // MARK: - Inspiration Items
@@ -119,8 +148,15 @@ final class Repository {
         }
     }
 
-    func deleteInspirationItem(_ item: InspirationItem) {
+    @discardableResult
+    func deleteInspirationItem(_ item: InspirationItem) -> Bool {
         modelContext.delete(item)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            log.error("Failed to delete inspiration item \\(item.title): \\(error.localizedDescription)")
+            return false
+        }
     }
 }

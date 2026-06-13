@@ -101,6 +101,7 @@ struct RedPulseApp: App {
                 .tint(.brand)
                 .preferredColorScheme(appearanceMode.colorScheme)
                 .trackScreenMetrics()
+                .frame(minWidth: 900, maxWidth: 1400, minHeight: 600, maxHeight: 900)
                 .sheet(isPresented: $showSettings) {
                     NavigationStack {
                         SettingsView()

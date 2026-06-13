@@ -60,6 +60,32 @@ final class JimengService {
         || !videoArkKey.isEmpty
     }
 
+    /// Returns a human-readable list of missing config fields.
+    /// Empty array means fully configured.
+    func validateConfig() -> (imageIssues: [String], videoIssues: [String]) {
+        var imageIssues: [String] = []
+        if imageArkKey.isEmpty {
+            if imageAK.isEmpty { imageIssues.append("图片生成缺少 Access Key") }
+            if imageSK.isEmpty { imageIssues.append("图片生成缺少 Secret Key") }
+            if imageReqKey.isEmpty { imageIssues.append("图片生成缺少模型标识 / req_key") }
+        }
+        if imageIssues.isEmpty {
+            imageIssues.append("Ark API Key 未配置（可选，填了可走更简洁的认证路径）")
+        }
+
+        var videoIssues: [String] = []
+        if videoArkKey.isEmpty {
+            if videoAK.isEmpty { videoIssues.append("视频生成缺少 Access Key") }
+            if videoSK.isEmpty { videoIssues.append("视频生成缺少 Secret Key") }
+            if videoReqKey.isEmpty { videoIssues.append("视频生成缺少模型标识 / req_key") }
+        }
+        if videoIssues.isEmpty {
+            videoIssues.append("Ark API Key 未配置（可选，填了可走更简洁的认证路径）")
+        }
+
+        return (imageIssues, videoIssues)
+    }
+
     // MARK: - Image Generation
 
     func generateImage(prompt: String) async {
