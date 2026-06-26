@@ -1,2 +1,2 @@
 部署后填写，例如：
-https://<你的用户名>.github.io/redbookrefill-website/support.html
+https://qian147208.github.io/notenova-website/技术支持.html

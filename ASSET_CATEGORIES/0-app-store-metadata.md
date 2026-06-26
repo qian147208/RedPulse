@@ -85,11 +85,11 @@
 
 ## 5. 技术支持网址 (Support URL)
 部署后填写，例如：
-https://<你的用户名>.github.io/redbookrefill-website/support.html
+https://qian147208.github.io/notenova-website/技术支持.html
 
 ## 6. 隐私政策网址 (Privacy Policy URL)
 部署后填写，例如：
-https://<你的用户名>.github.io/redbookrefill-website/privacy.html
+https://qian147208.github.io/notenova-website/隐私政策.html
 
 ## 7. 价格
 免费
