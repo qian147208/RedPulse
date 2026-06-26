@@ -130,32 +130,7 @@ struct ThinkingOverlay: View {
             }
             .foregroundStyle(elapsedSeconds >= 20 ? Color.warning : Color.ink3)
 
-            // 真实进度条（LLM 流式字符数 / 目标字符数）
-            if progress > 0 {
-                VStack(spacing: 6) {
-                    HStack(spacing: 4) {
-                        if !stage.isEmpty {
-                            Text(stage)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Color.brand)
-                        }
-                        Spacer()
-                        Text("\(receivedChars)/\(targetChars) 字")
-                            .font(.system(size: 10, weight: .medium).monospacedDigit())
-                            .foregroundStyle(Color.ink3)
-                        Text("\(Int(progress * 100))%")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Color.brand)
-                            .frame(width: 36, alignment: .trailing)
-                    }
-                    ProgressView(value: min(progress, 1.0))
-                        .progressViewStyle(.linear)
-                        .tint(Color.brand)
-                }
-                .padding(.bottom, 16)
-            } else {
-                Spacer().frame(height: 16)
-            }
+            // 真实进度条已移除(用户要求)
 
             if let onCancel {
                 Button {

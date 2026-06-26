@@ -195,7 +195,6 @@ struct GenerateView: View {
             }
             .padding(.vertical, Spacing.md)
             .background(.ultraThinMaterial)
-            .padding(.bottom, Adaptive.floatingButtonBottomPadding)
         }
         .background(Color.bg.ignoresSafeArea())
         .overlay {

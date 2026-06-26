@@ -67,7 +67,7 @@ final class GenerationSession {
 
     // MARK: - 任务状态
 
-    /// 是否正在生成（ThinkingOverlay / 按钮 disabled 用）
+    /// 是否正在生成（按钮 disabled 用）
     var isGenerating: Bool = false
 
     /// 进度文案
