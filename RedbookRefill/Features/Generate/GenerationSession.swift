@@ -142,16 +142,16 @@ final class GenerationSession {
 
         task = Task { [weak self] in
             do {
-                currentStage = "正在生成文案"
-                progressMessage = "正在生成文案"
+                self?.currentStage = "正在生成文案"
+                self?.progressMessage = "正在生成文案"
                 let response = try await generator.generateStream(request) { [weak self] chars in
                     // LLM 流式回调：实时更新进度
                     self?.receivedChars = chars
                     self?.progressMessage = "撰写中…（\(chars)/\(self?.targetChars ?? 1000) 字）"
                 }
                 try Task.checkCancellation()
-                currentStage = "解析结果"
-                progressMessage = "解析结果"
+                self?.currentStage = "解析结果"
+                self?.progressMessage = "解析结果"
 
                 let record = GenerationRecord(
                     adType: capturedAdType.rawValue,

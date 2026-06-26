@@ -13,6 +13,7 @@ struct GenerateView: View {
     @Environment(Repository.self) private var repository
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.launchStage) private var launchStage
     @Query(sort: \Product.createdAt, order: .reverse) private var products: [Product]
 
     @AppStorage("show_step3_tip") private var showStep3Tip = true
@@ -264,9 +265,10 @@ struct GenerateView: View {
 
     // MARK: - Body
 
+    @ViewBuilder
     private var generationFormBody: some View {
         @Bindable var bindableSession = session
-        return Group {
+        Group {
             if sizeClass == .regular {
                 regularLayout
             } else {
@@ -279,9 +281,13 @@ struct GenerateView: View {
         #endif
         .onAppear {
             Task { await fetchTrendingKeywords() }
-            // 首次启动引导：currentStep 从 -1 → 0
-            // 延迟 1.0s 等 layout 就绪，否则 popover 位置算不准
-            if currentStep == -1 {
+            // 首次启动引导移到 onChange(of: launchStage) ——
+            // 之前在 onAppear 里写,结果 ContentView 一直在 view tree(opacity=0 也 mount),
+            // 协议还没同意时 onAppear 就触发了,1 秒后弹引导(顺序错)。
+        }
+        .onChange(of: launchStage) { _, new in
+            // 只有真正进入主界面才弹首次启动引导
+            if new == .mainContent && currentStep == -1 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     currentStep = 0
                     showOnboardStep1 = true

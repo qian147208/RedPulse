@@ -120,6 +120,7 @@ struct RedPulseApp: App {
         WindowGroup {
             ZStack {
                 ContentView(selectedTabRaw: $selectedTabRaw)
+                    .environment(\.launchStage, launchStage)
                     .environment(generationSession)
                     .environment(regenSession)
                     .tint(.brand)
@@ -182,9 +183,26 @@ struct RedPulseApp: App {
     }
 }
 
-/// P1:启动状态机
-private enum LaunchStage {
+// MARK: - LaunchStage environment
+//
+// 把启动阶段(法律协议 / 引导 / 主界面)暴露给子 view,让它们知道当前是不是已经到主界面。
+// 主要给 GenerateView 的"首次启动引导"用 ——
+// 之前用 onAppear 触发,结果 ContentView 一直在 view tree 里(opacity=0 但 mount 着),
+// 协议还没同意就 onAppear → 1 秒后弹引导,顺序错。
+
+enum LaunchStage: Equatable {
     case legalConsent   // 必须先同意法律协议
     case onboarding     // 协议同意后才进入引导(首次启动时弹一次)
     case mainContent    // 主界面
+}
+
+private struct LaunchStageKey: EnvironmentKey {
+    static let defaultValue: LaunchStage = .mainContent
+}
+
+extension EnvironmentValues {
+    var launchStage: LaunchStage {
+        get { self[LaunchStageKey.self] }
+        set { self[LaunchStageKey.self] = newValue }
+    }
 }
