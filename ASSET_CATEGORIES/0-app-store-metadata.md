@@ -85,11 +85,11 @@
 
 ## 5. 技术支持网址 (Support URL)
 部署后填写，例如：
-https://qian147208.github.io/notenova-website/技术支持.html
+https://qian147208.github.io/notenova-website/support.html
 
 ## 6. 隐私政策网址 (Privacy Policy URL)
 部署后填写，例如：
-https://qian147208.github.io/notenova-website/隐私政策.html
+https://qian147208.github.io/notenova-website/privacy.html
 
 ## 7. 价格
 免费
