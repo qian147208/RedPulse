@@ -1,6 +1,6 @@
 //
 //  CameraPicker.swift
-//  RedPulse
+//  灵芯
 //
 //  Wraps UIImagePickerController for camera capture on iOS / iPadOS.
 //  On macOS the camera path is not exposed — callers should only present

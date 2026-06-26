@@ -1,6 +1,6 @@
 //
 //  SelectableTextEditor.swift
-//  RedPulse
+//  灵芯
 //
 //  平台自适应文本编辑器 — 检测选中文字以触发 AI 改写对话框。
 //  iOS: UIViewRepresentable + UITextView

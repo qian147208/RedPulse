@@ -1,6 +1,6 @@
 //
 //  GlobalAssistantRoot.swift
-//  RedPulse
+//  灵芯
 //
 //  全局 AI 助手主视图，支持多会话。
 //  - mac / iPad 横屏：NavigationSplitView 双栏（左侧 session 列表，右侧聊天）
@@ -113,7 +113,7 @@ final class GlobalChatAgent {
 
     private var systemPrompt: String {
         """
-        你是 RedPulse app 内置的 AI 笔记助手。
+        你是 灵芯 app 内置的 AI 笔记助手。
         用户会问你与小红书内容创作相关的任何问题：选题、爆款标题、文案润色、标签、配图建议、运营策略等。
         - 回答要口语化、清晰、可执行。
         - 适当使用 emoji 增强可读性。

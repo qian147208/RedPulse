@@ -1,6 +1,6 @@
 //
 //  GenerateViewHelpers.swift
-//  RedPulse
+//  灵芯
 //
 //  LLM helpers and state management extracted from GenerateView.
 //  Extracted from the original 1272-line GenerateView.

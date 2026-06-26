@@ -1,6 +1,6 @@
 //
 //  OnboardingTips.swift
-//  RedPulse
+//  灵芯
 //
 //  用 SwiftUI 标准 .popover(isPresented:) 自管首次引导（不用 TipKit）。
 //

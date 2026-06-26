@@ -1,6 +1,6 @@
 //
 //  AssetPackager.swift
-//  RedPulse
+//  灵芯
 //
 //  一键打包小红书笔记素材的 actor。纯 IO 逻辑，与 UI 无关。
 //  三端复用：macOS 走 package(record:to:)，iOS/iPadOS 走 packageAsZip(record:)。
@@ -137,7 +137,7 @@ actor AssetPackager {
         === 广告类型 ===
         \(record.adType)
 
-        —— 由 RedPulse 生成 · \(timestamp) ——
+        —— 由 灵芯 生成 · \(timestamp) ——
         """
 
         let fileURL = folderURL.appendingPathComponent("笔记.txt")

@@ -1,6 +1,6 @@
 //
 //  LegalConsentView.swift
-//  RedPulse
+//  灵芯
 //
 //  P1:首次启动硬性同意页 —— 必须在用户勾选「我已阅读并同意《隐私协议》和《服务条款》」
 //  后才能进入主界面。
@@ -103,7 +103,7 @@ struct LegalConsentView: View {
                     .symbolRenderingMode(.hierarchical)
             }
 
-            Text("欢迎使用 RedPulse")
+            Text("欢迎使用 灵芯")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(Color.ink)
 
@@ -122,7 +122,7 @@ struct LegalConsentView: View {
                 .foregroundStyle(Color.ink)
 
             Text("""
-                RedPulse 是一款本地优先的 AI 内容创作工具。本应用不运营服务器、不收集您的个人信息,所有创作数据存储在您的设备本地,卸载即永久删除。
+                灵芯 是一款本地优先的 AI 内容创作工具。本应用不运营服务器、不收集您的个人信息,所有创作数据存储在您的设备本地,卸载即永久删除。
                 """)
                 .font(.system(size: 13))
                 .foregroundStyle(Color.ink2)

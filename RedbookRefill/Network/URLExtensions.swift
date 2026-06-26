@@ -1,6 +1,6 @@
 //
 //  URLExtensions.swift
-//  RedPulse
+//  灵芯
 //
 //  URL 安全解析扩展，防止 iOS 17 / macOS 14+ 严格 URL 解析器因 query 中带有花括号、引号等特殊字符导致返回 nil。
 //

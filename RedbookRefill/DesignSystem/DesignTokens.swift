@@ -1,6 +1,6 @@
 //
 //  DesignTokens.swift
-//  RedPulse
+//  灵芯
 //
 //  Style direction: W + B  ——  SaaS-grade neutrals (Stripe/Linear) with
 //  editorial typography (Apple Newsroom) and a single red accent inherited

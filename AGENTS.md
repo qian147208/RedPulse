@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> **红书笔芯 / RedbookRefill** — iOS + macOS SwiftUI 小红书种草笔记生成器（小红书风格文/图/视频多模态生成 + 灵感和发布预览）。
+> **灵芯 / RedbookRefill** — iOS + macOS SwiftUI 小红书种草笔记生成器（小红书风格文/图/视频多模态生成 + 灵感和发布预览）。
 > 
 > 本文件被 OpenCode / Codex / Cursor / Aider / Devin / Gemini CLI / Claude Code / Mavis 等所有 AGENTS.md-aware 工具识别。每次新会话先读这个。
 
@@ -29,7 +29,7 @@
 RedbookRefill/                          ← Xcode project 根（这里跑 git）
 ├── RedbookRefill.xcodeproj/            ← objectVersion 77，文件系统同步组（自动 pick up 新文件）
 ├── RedbookRefill/                      ← 源码根（所有 Swift 代码在这里）
-│   ├── RedbookRefillApp.swift          ← App 入口（注意：文件名是历史遗留，叫 RedPulse 不叫 RedbookRefill）
+│   ├── RedbookRefillApp.swift          ← App 入口（注意：文件名是历史遗留，叫 灵芯 不叫 RedbookRefill）
 │   ├── ContentView.swift                ← 路由根容器
 │   ├── RootTabView.swift                ← iOS Tab 视图根
 │   ├── DesignSystem/                    ← 设计 token / ViewModifier / 动效
@@ -138,7 +138,7 @@ UI 配置入口：`Profile/LLMConfigView.swift`（App 内「我的 → 大模型
 
 1. **Stale Jimeng 引用**：Xcode project 历史上引用过 `JimengService.swift` / `JimengAPIClient.swift` / `JimengContracts.swift` / `ArkJimengClient.swift` ——这些文件已经删除但 `project.pbxproj` 里可能仍有引用。**现在统一用 Agnes**，遇到 stale ref 在 build 报错时从 pbxproj 里手动清掉。
 2. **`QualityToggle.swift`**：已删除，Xcode project 引用可能还在。
-3. **`RedbookRefillApp.swift` vs `RedbookRefill.xcodeproj`**：入口文件名是历史遗留（叫 `RedPulseApp.swift` 时代），不要 rename，会断 Xcode 引用。
+3. **`RedbookRefillApp.swift` vs `RedbookRefill.xcodeproj`**：入口文件名是历史遗留（叫 `灵芯App.swift` 时代），不要 rename，会断 Xcode 引用。
 4. **`DebugLog.shared` 是单例**：异步安全，多分类（`.llm` / `.agnes` / `.jimeng` 等），所有日志入口。
 5. **Agnes 视频是异步任务**：POST 创建任务 → 轮询查结果，**最长 8 分钟超时**——别用同步阻塞调用。
 6. **网络层 `nonisolated static`**：发请求必须用 `nonisolated` 函数，不然 `@MainActor` 隔离会让请求被 dispatch 回主线程。

@@ -1,6 +1,6 @@
 //
 //  GenerationSession.swift
-//  RedPulse
+//  灵芯
 //
 //  跨 view 生命周期持有"生成页"的所有状态：
 //  - 表单 state（keyword / hintText / selectedProduct / 选中 chip 集合...）

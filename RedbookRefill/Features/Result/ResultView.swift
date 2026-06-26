@@ -1,6 +1,6 @@
 //
 //  ResultView.swift
-//  RedPulse
+//  灵芯
 //
 //  结果页 — 三栏/双栏/TAB 自适应布局
 //  拆分后作为 orchestrator，实际子组件在 ResultEditorPanels/ResultAITools/ResultLayoutHelpers/ResultRegenHelpers 中。

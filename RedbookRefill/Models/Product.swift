@@ -1,6 +1,6 @@
 //
 //  Product.swift
-//  RedPulse
+//  灵芯
 //
 //  SwiftData model for a product entry in the user's local product library.
 //  Fields match requirements V3.2 §4.1.

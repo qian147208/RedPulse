@@ -1,6 +1,6 @@
 //
 //  MockGenerator.swift
-//  RedPulse
+//  灵芯
 //
 //  Local mock of the generation API. Mirrors prototype `mockGenerateResult()`:
 //  - extracts a short product name (≤8 chars) from the keyword's first token

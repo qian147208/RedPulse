@@ -1,6 +1,6 @@
 //
 //  RedNoteReaderView.swift
-//  RedPulse
+//  灵芯
 //
 //  iPhone 模拟器 · 三 Tab（同级）：
 //   内容导航 → 小红书发现页 2 列瀑布流（含当前生成 + 历史记录）
@@ -544,7 +544,7 @@ struct RedNoteReaderView: View {
     }
 
     private var metaLine: some View {
-        Text("\(formattedNow) · RedPulse AI · IP 属地：广东")
+        Text("\(formattedNow) · 灵芯 AI · IP 属地：广东")
             .font(.system(size: 12)).foregroundStyle(Color.ink4)
             .padding(.horizontal, 12).padding(.top, 12)
     }

@@ -1,6 +1,6 @@
 //
 //  ProfileView.swift
-//  RedPulse
+//  灵芯
 //
 //  「我的」个人中心 — 数据看板 + 快捷操作 + 设置入口。
 //  No auth required — app is always available.

@@ -1,6 +1,6 @@
 //
 //  GenerateContracts.swift
-//  RedPulse
+//  灵芯
 //
 //  Request / response value types and the GeneratorProtocol abstraction.
 //  Concrete implementations: MockGenerator (first release) and a future

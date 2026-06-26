@@ -1,6 +1,6 @@
 //
 //  AdType.swift
-//  RedPulse
+//  灵芯
 //
 //  Four ad types defined by the V3.2 requirements. Raw values are the
 //  Chinese strings persisted in `GenerationRecord.adType`.

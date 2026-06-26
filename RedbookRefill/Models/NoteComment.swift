@@ -1,6 +1,6 @@
 //
 //  NoteComment.swift
-//  RedPulse
+//  灵芯
 //
 //  小红书预览页评论区数据模型。AI 内容诊断师和用户的多轮对话都落这里。
 //  本地优先 · SwiftData 存储 · 绑定到 GenerationRecord。

@@ -1,6 +1,6 @@
 //
 //  PublishPreviewView.swift
-//  RedPulse
+//  灵芯
 //
 //  发布预览：模拟小红书笔记卡片，文案 + 配图 + 视频合在一起预览。
 //

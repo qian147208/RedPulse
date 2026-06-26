@@ -2,7 +2,7 @@
 
 > 版本：1.0  
 > 日期：2026-01-15  
-> 项目：RedbookRefill（红书笔芯）
+> 项目：RedbookRefill（灵芯）
 
 ---
 

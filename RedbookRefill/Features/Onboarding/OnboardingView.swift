@@ -1,6 +1,6 @@
 //
 //  OnboardingView.swift
-//  RedPulse
+//  灵芯
 //
 //  新手引导：4 页 — AI 生成 / 产品库 / 结果编辑 / 开始创作。
 //

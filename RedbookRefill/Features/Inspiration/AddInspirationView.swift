@@ -1,6 +1,6 @@
 //
 //  AddInspirationView.swift
-//  RedPulse
+//  灵芯
 //
 //  手动添加灵感条目。
 //

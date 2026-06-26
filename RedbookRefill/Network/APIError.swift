@@ -1,6 +1,6 @@
 //
 //  APIError.swift
-//  RedPulse
+//  灵芯
 //
 //  Mirrors the error code contract in requirements V3.2 §10.1. Each case
 //  carries a Chinese user-facing message via `userMessage`.

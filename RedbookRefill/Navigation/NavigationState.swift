@@ -1,6 +1,6 @@
 //
 //  NavigationState.swift
-//  RedPulse
+//  灵芯
 //
 //  Shared navigation state for programmatic push navigation.
 //  Works around SwiftUI bugs with .navigationDestination inside

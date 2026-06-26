@@ -1,6 +1,6 @@
 //
 //  ThinkingOverlay.swift
-//  RedPulse
+//  灵芯
 //
 //  文本生成期间的全屏 thinking overlay。
 //  - 半透明遮罩 + 居中卡片

@@ -1,6 +1,6 @@
 //
 //  RootTabView.swift
-//  RedPulse
+//  灵芯
 //
 //  Adaptive root navigation with Liquid Glass accents.
 //  iPhone: native TabView for full safe-area & iPhone 13+ adaptation

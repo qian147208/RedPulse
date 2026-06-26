@@ -1,6 +1,6 @@
 //
 //  DiagnosticAgent.swift
-//  RedPulse
+//  灵芯
 //
 //  小红书预览评论区 AI 诊断师：
 //  - 初始诊断：进入预览页时跑一次全维度评审（标题/正文/标签/配图），结果落库为多条 AI NoteComment

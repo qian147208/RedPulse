@@ -1,6 +1,6 @@
 //
 //  Repository.swift
-//  RedPulse
+//  灵芯
 //
 //  Single read/write entry point on top of SwiftData's ModelContext.
 //  All read APIs return materialised arrays (small dataset, no pagination).

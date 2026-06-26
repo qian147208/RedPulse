@@ -1,6 +1,6 @@
 //
 //  GenerateStepStep4Hint.swift
-//  RedPulse
+//  灵芯
 //
 //  Step 4: Style hint chips section for GenerateView.
 //  Extracted from the original 1272-line GenerateView.

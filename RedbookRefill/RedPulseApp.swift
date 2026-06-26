@@ -1,6 +1,6 @@
 //
 //  RedPulseApp.swift
-//  RedPulse
+//  灵芯
 //
 //  App entry. Owns the SwiftData container.
 //  No auth required — app opens directly to the main tab view.
@@ -54,7 +54,7 @@ struct AppCommands: Commands {
         #endif
 
         CommandGroup(replacing: .help) {
-            Button("RedPulse 帮助") {
+            Button("灵芯 帮助") {
                 if let url = URL(string: "https://example.com/help") {
                     #if os(macOS)
                     NSWorkspace.shared.open(url)

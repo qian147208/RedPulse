@@ -1,6 +1,6 @@
 //
 //  GenerateView.swift
-//  RedPulse
+//  灵芯
 //
 //  生成笔记主页面 — 四步表单：产品 → 广告类型 → 关键词 → 风格
 //  拆分后作为 orchestrator，实际 UI 子组件在 GenerateStepSections/GenerateStepStep4Hint/GenerateViewHelpers 中。

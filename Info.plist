@@ -23,7 +23,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh_CN</string>
 	<key>CFBundleDisplayName</key>
-	<string>RedPulse</string>
+	<string>灵芯</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -41,10 +41,10 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>红书笔芯 需要访问摄像头，以便拍摄产品照片用于生成笔记。</string>
+	<string>灵芯 需要访问摄像头，以便拍摄产品照片用于生成笔记。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>红书笔芯 需要访问照片库，以便选择产品参考图用于生成笔记。</string>
+	<string>灵芯 需要访问照片库，以便选择产品参考图用于生成笔记。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>红书笔芯 需要访问照片库，以便选择产品参考图用于生成笔记。</string>
+	<string>灵芯 需要访问照片库，以便选择产品参考图用于生成笔记。</string>
 </dict>
 </plist>

@@ -7,7 +7,7 @@
 
 ### 1. 创建 GitHub 仓库
 ```bash
-cd ~/Desktop/红书笔芯/RedbookRefill/ASSET_CATEGORIES/
+cd ~/Desktop/灵芯/RedbookRefill/ASSET_CATEGORIES/
 
 # 如果还没有专用仓库，可以创建一个名为 redbookrefill-privacy 的 GitHub 仓库
 # 在 GitHub 上创建新仓库，设置名为 public（或你想用的名字）
@@ -20,7 +20,7 @@ cd ~/Desktop/红书笔芯/RedbookRefill/ASSET_CATEGORIES/
 
 #### 方式 A：用现有项目启用 GitHub Pages
 ```bash
-cd ~/Desktop/红书笔芯/RedbookRefill
+cd ~/Desktop/灵芯/RedbookRefill
 
 # 确保项目已推送到 GitHub
 git remote -v
@@ -45,7 +45,7 @@ git push
 
 #### 方式 C：用 GitHub Pages（最标准）
 ```bash
-cd ~/Desktop/红书笔芯/RedbookRefill
+cd ~/Desktop/灵芯/RedbookRefill
 
 # 创建 docs 目录并放隐私政策
 mkdir -p docs

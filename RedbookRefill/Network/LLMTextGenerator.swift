@@ -1,6 +1,6 @@
 //
 //  LLMTextGenerator.swift
-//  RedPulse
+//  灵芯
 //
 //  真实文本生成：调用 LLMConfigView 里配置的 OpenAI 兼容接口
 //  （/v1/chat/completions），把产品库的字段作为 system prompt 的产品段，

@@ -1,6 +1,6 @@
 //
 //  Feedback.swift
-//  RedPulse
+//  灵芯
 //
 //  SwiftData model for user feedback entries. Fields match requirements
 //  V3.2 §4.3.

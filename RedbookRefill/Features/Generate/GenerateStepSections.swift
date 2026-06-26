@@ -1,6 +1,6 @@
 //
 //  GenerateStepSections.swift
-//  RedPulse
+//  灵芯
 //
 //  Step 1–4 sub-sections for GenerateView.
 //  Extracted from the original 1272-line GenerateView to improve readability.

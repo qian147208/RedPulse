@@ -1,6 +1,6 @@
 //
 //  ResultEditorPanels.swift
-//  RedPulse
+//  灵芯
 //
 //  Editor panel sub-components for ResultView.
 //  Extracted from the original 2550-line ResultView.

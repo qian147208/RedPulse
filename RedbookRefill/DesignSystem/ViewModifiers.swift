@@ -1,6 +1,6 @@
 //
 //  ViewModifiers.swift
-//  RedPulse
+//  灵芯
 //
 //  W+B editorial-SaaS style: cards are border-led, not shadow-led.
 //  Pills are subtle. Buttons have strong typographic identity.

@@ -1,6 +1,6 @@
 //
 //  RegenSession.swift
-//  RedPulse
+//  灵芯
 //
 //  跨 view 生命周期持有"重新生成"任务（文本/图片/视频）：
 //  - 任务在 app 顶层注入的 session 实例里跑，view 销毁 task 不丢

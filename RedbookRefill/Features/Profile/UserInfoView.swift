@@ -1,6 +1,6 @@
 //
 //  UserInfoView.swift
-//  RedPulse
+//  灵芯
 //
 //  个人信息页（简化版，无登录/访客概念）。
 //

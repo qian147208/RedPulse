@@ -1,6 +1,6 @@
 //
 //  FeedbackView.swift
-//  RedPulse
+//  灵芯
 //
 //  意见反馈子页面（见需求 §模块8 M4）。
 //  - TextEditor 200 字限制 + 实时字数

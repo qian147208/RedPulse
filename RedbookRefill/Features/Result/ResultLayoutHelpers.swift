@@ -1,6 +1,6 @@
 //
 //  ResultLayoutHelpers.swift
-//  RedPulse
+//  灵芯
 //
 //  Shared layout helpers extracted from ResultView (triple/dual pane layouts, drag handle, step columns).
 //  These are layout utilities, not business logic — they take content as @ViewBuilder.

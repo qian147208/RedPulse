@@ -1,6 +1,6 @@
 //
 //  ChatLauncher.swift
-//  RedPulse
+//  灵芯
 //
 //  全局 AI 助手 FAB。每个 Tab 都看得到，点击打开 AI 笔记助手。
 //  - macOS: 调 openWindow 打开独立 Window（Cmd+Shift+A 快捷键）

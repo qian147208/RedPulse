@@ -1,6 +1,6 @@
 //
 //  InspirationPickerSheet.swift
-//  RedPulse
+//  灵芯
 //
 //  从灵感板选择条目导入到生成页。
 //

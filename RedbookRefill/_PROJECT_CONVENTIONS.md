@@ -1,12 +1,12 @@
-# 红书笔芯 iOS - 项目宪法
+# 灵芯 iOS - 项目宪法
 
 > 这是所有并行开发 agent 必须遵守的共享约定。优先级高于个人风格偏好。
 
 ## 项目背景
 
-- **需求文档**：`/Users/mac/Desktop/红书笔芯/prototype/需求_融合版.md`（V3.2）
-- **HTML 原型**：`/Users/mac/Desktop/红书笔芯/prototype/index.html`（V3.2 实现，可参考交互细节）
-- **后端代理设计**：`/Users/mac/Desktop/红书笔芯/prototype/后端代理设计.md`
+- **需求文档**：`/Users/mac/Desktop/灵芯/prototype/需求_融合版.md`（V3.2）
+- **HTML 原型**：`/Users/mac/Desktop/灵芯/prototype/index.html`（V3.2 实现，可参考交互细节）
+- **后端代理设计**：`/Users/mac/Desktop/灵芯/prototype/后端代理设计.md`
 - **App 入口**：`RedbookRefill/RedbookRefillApp.swift`
 - **Xcode 项目**：`RedbookRefill.xcodeproj`（objectVersion 77，文件系统同步组，新文件自动加入）
 

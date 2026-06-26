@@ -1,6 +1,6 @@
-# 红书笔芯官网 (RedPulse Website)
+# 灵芯官网 (灵芯 Website)
 
-> 红书笔芯 App 的官方网站，用于 App Store 审核的技术支持 URL 和隐私政策 URL。
+> 灵芯 App 的官方网站，用于 App Store 审核的技术支持 URL 和隐私政策 URL。
 
 ## 📂 文件结构
 
@@ -31,7 +31,7 @@ website/
 ### 第 2 步：初始化并推送
 
 ```bash
-cd /Users/mac/Desktop/红书笔芯/RedbookRefill/website
+cd /Users/mac/Desktop/灵芯/RedbookRefill/website
 
 # 初始化 git
 git init
@@ -43,7 +43,7 @@ git remote add origin https://github.com/<你的用户名>/redbookrefill-website
 git add .
 
 # 提交
-git commit -m "Initial website for RedPulse"
+git commit -m "Initial website for 灵芯"
 
 # 重命名分支为 main
 git branch -M main
@@ -72,7 +72,7 @@ git push -u origin main
 ## 🔧 可选：使用自动部署脚本
 
 ```bash
-cd /Users/mac/Desktop/红书笔芯/RedbookRefill/website
+cd /Users/mac/Desktop/灵芯/RedbookRefill/website
 bash deploy.sh
 ```
 
@@ -92,4 +92,4 @@ bash deploy.sh
 
 ---
 
-© 2026 红书笔芯 (RedPulse). 保留所有权利。
+© 2026 灵芯 (灵芯). 保留所有权利。

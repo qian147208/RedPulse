@@ -1,6 +1,6 @@
 //
 //  RewritePromptDialog.swift
-//  RedPulse
+//  灵芯
 //
 //  划词 AI 改写对话框。
 //  用户在文本编辑器选中一段文字后直接弹出此对话框 →

@@ -1,6 +1,6 @@
 //
 //  PlatformInteractions.swift
-//  RedPulse
+//  灵芯
 //
 //  Platform-specific interaction modifiers:
 //  - iPad: Drag & Drop (text dropping onto AI assistant)

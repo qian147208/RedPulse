@@ -1,6 +1,6 @@
 //
 //  ChatSession.swift
-//  RedPulse
+//  灵芯
 //
 //  全局 AI 助手的多会话模型。每个 ChatSession 代表一次独立对话；
 //  实际消息复用 NoteComment 表 —— 把 session.id 当作 recordId 写入。

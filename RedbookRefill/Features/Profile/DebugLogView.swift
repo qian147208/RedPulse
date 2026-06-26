@@ -1,6 +1,6 @@
 //
 //  DebugLogView.swift
-//  RedPulse
+//  灵芯
 //
 //  调试日志查看页（开发者模式入口）。
 //  - 搜索过滤

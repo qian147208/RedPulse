@@ -1,4 +1,4 @@
-# RedPulse
+# 灵芯
 
 > AI 驱动的小红书内容创作工具 — iPhone / iPad / Mac 三端通用
 
@@ -9,7 +9,7 @@
 
 ## 简介
 
-RedPulse 是一款面向小红书创作者的桌面 / 移动端 AI 创作工具。在本地优先(Local-First)架构下,帮助你完成从产品库管理、AI 文案生成、AI 配图、AI 短视频到内容预览、发布前优化的完整工作流。
+灵芯 是一款面向小红书创作者的桌面 / 移动端 AI 创作工具。在本地优先(Local-First)架构下,帮助你完成从产品库管理、AI 文案生成、AI 配图、AI 短视频到内容预览、发布前优化的完整工作流。
 
 **核心特点**:
 - **本地优先**:所有创作数据存储在设备本地(沙箱),卸载即永久删除,开发者无法访问
@@ -60,7 +60,7 @@ RedPulse 是一款面向小红书创作者的桌面 / 移动端 AI 创作工具�
 
 ```
 RedbookRefill/
-├── RedPulseApp.swift              # 应用入口 + LaunchStage 状态机
+├── 灵芯App.swift              # 应用入口 + LaunchStage 状态机
 ├── ContentView.swift              # 主路由容器
 ├── RootTabView.swift              # 侧边栏 / Tab 切换
 ├── PrivacyInfo.xcprivacy         # Apple 隐私清单
@@ -111,7 +111,7 @@ RedbookRefill/
 
 ```bash
 git clone https://github.com/qian147208/RedPulse.git
-cd RedPulse
+cd 灵芯
 ```
 
 ### 2. 打开项目
@@ -156,7 +156,7 @@ API Key 仅存储在本地 UserDefaults,**不上传至任何服务器**。
 ## 开发规范
 
 ### 命名约定
-- 主入口:`RedPulseApp.swift`
+- 主入口:`灵芯App.swift`
 - 设计令牌统一在 `DesignSystem/`
 - 网络层用 `async/await` 异步
 - 状态管理用 `@Observable`(Swift 5.9+)
@@ -187,4 +187,4 @@ API Key 仅存储在本地 UserDefaults,**不上传至任何服务器**。
 
 ---
 
-**RedPulse** — 让小红书创作更简单 ✨
+**灵芯** — 让小红书创作更简单 ✨

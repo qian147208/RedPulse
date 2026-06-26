@@ -1,6 +1,6 @@
 //
 //  GenerationRecord.swift
-//  RedPulse
+//  灵芯
 //
 //  SwiftData model for a single generation result. Fields match
 //  requirements V3.2 §4.2. `hotScore` is retained as a backend monitoring

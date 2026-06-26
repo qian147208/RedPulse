@@ -197,7 +197,7 @@ let allRecords = repository.fetchAllRecords()
 
 **遇到 schema 不兼容**：
 ```swift
-// 红书笔芯 App 启动时如果 schema 改了会崩
+// 灵芯 App 启动时如果 schema 改了会崩
 // 临时解决方案（仅 dev）：删 app 重装 / 清沙盒
 ```
 

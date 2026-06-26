@@ -1,6 +1,6 @@
 //
 //  InspirationBoardView.swift
-//  RedPulse
+//  灵芯
 //
 //  灵感板：收藏笔记片段、关键词、风格提示，供生成时复用。
 //

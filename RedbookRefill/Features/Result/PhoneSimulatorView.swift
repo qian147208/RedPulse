@@ -1,6 +1,6 @@
 //
 //  PhoneSimulatorView.swift
-//  RedPulse
+//  灵芯
 //
 //  iPhone simulator shell: dark bezel + Dynamic Island + Home indicator.
 //  Wraps any content to look like it's running on a real iPhone.
