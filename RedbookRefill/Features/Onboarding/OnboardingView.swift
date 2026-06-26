@@ -8,7 +8,9 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    @Environment(\.dismiss) private var dismiss
+    /// P1:新增 onFinish 回调,让 RedPulseApp 控制关闭,
+    /// 不再依赖 @Environment(\.dismiss)(后者只在 sheet 上下文有效)
+    var onFinish: () -> Void = {}
     @AppStorage("has_seen_onboarding") private var hasSeenOnboarding: Bool = false
     @State private var currentPage: Int = 0
     @State private var dontShowAgain: Bool = false
@@ -121,7 +123,7 @@ struct OnboardingView: View {
                     .font(.system(size: iconFont, weight: .semibold))
                     .foregroundStyle(item.iconBg)
                     .symbolRenderingMode(.hierarchical)
-                    .symbolEffect(.bounce)
+                    .modifier(BounceEffectIfAvailable())
             }
             .accessibilityHidden(true)
 
@@ -289,10 +291,31 @@ struct OnboardingView: View {
     }
 
     private func finishOnboarding() {
-        if dontShowAgain {
-            hasSeenOnboarding = true
+        // 总是标记为已看过：用户点"开始使用"或"跳过"就代表这次引导结束。
+        // "不再提醒"仅作为 UI 提示保留，不参与 flag 逻辑（避免修又走完又弹的老 bug）。
+        hasSeenOnboarding = true
+        onFinish()
+    }
+}
+
+/// macOS 15.0+ / iOS 18.0+ 才支持 BounceSymbolEffect.IndefiniteSymbolEffect conformance
+/// （BounceSymbolEffect 本身 iOS 17+ 可用，但用作 indefinite effect 在 macOS 上需 15.0+、iOS 上需 18.0+）。
+/// Swift 6 模式下，缺这层守卫会变成编译错误。
+private struct BounceEffectIfAvailable: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        if #available(macOS 15.0, *) {
+            content.symbolEffect(.bounce)
+        } else {
+            content
         }
-        dismiss()
+        #else
+        if #available(iOS 18.0, *) {
+            content.symbolEffect(.bounce)
+        } else {
+            content
+        }
+        #endif
     }
 }
 

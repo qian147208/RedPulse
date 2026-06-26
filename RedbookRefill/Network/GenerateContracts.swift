@@ -48,6 +48,11 @@ protocol GeneratorProtocol {
     /// Full generation. Used by G1/G7 (new + 换一批).
     func generate(_ req: GenerateRequest) async throws -> GenerateResponse
 
+    /// 流式生成：每收一段 LLM token 增量调 `onChunk(receivedChars)`，让 UI 显示实时进度。
+    /// 默认实现转发到 `generate(_:)`，LLMTextGenerator 覆写为真实流式（chatStream 累积）。
+    /// - Parameter onChunk: 主线程回调，参数是已累计收到的字符数（包含当前 chunk）
+    func generateStream(_ req: GenerateRequest, onChunk: @MainActor (Int) -> Void) async throws -> GenerateResponse
+
     /// 即梦文生图。使用 imagePrompt 生成配图。
     func generateImage(prompt: String, reqKey: String, accessKey: String, secretKey: String) async throws -> ImageGenResult
 
@@ -84,7 +89,4 @@ protocol GeneratorProtocol {
         existingTitle: String,
         existingContent: String
     ) async throws -> [String]
-
-    /// 划词 AI 动作：对选中的文字执行指定操作（润色/改写/扩写/缩写/换风格）。
-    func transformText(command: String, selectedText: String, context: String) async throws -> String
 }

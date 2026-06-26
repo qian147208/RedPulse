@@ -29,10 +29,11 @@ struct ProductFormView: View {
     @State private var isLoadingPhotos = false
     @State private var showSourceDialog = false
     @State private var showPhotoLibrary = false
-    #if os(iOS) && !targetEnvironment(macCatalyst)
+    // P1-6: 已关闭 Mac Catalyst（SUPPORTS_MACCATALYST = NO），简化分支判断
+    #if os(iOS)
     @State private var showCamera = false
     #endif
-    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+    #if canImport(AppKit)
     @State private var showFileImporter = false
     #endif
 
@@ -296,11 +297,11 @@ struct ProductFormView: View {
     /// Cross-platform image source button.
     /// - iOS / iPadOS: confirmation dialog (拍照 / 从图库选择)
     /// - macOS: confirmation dialog (从图库选择 / 从文件夹选择)
-    /// - Mac Catalyst: PhotosPicker directly
+    /// P1-6: 已关闭 Mac Catalyst，无需再处理 Catalyst 分支
     private var addImageButton: some View {
         let remaining = max(1, Self.maxImages - styleImagePaths.count)
 
-        #if os(iOS) && !targetEnvironment(macCatalyst)
+        #if os(iOS)
         return Button {
             showSourceDialog = true
         } label: {
@@ -335,7 +336,7 @@ struct ProductFormView: View {
             guard !newItems.isEmpty else { return }
             handlePickedPhotos(newItems)
         }
-        #elseif canImport(AppKit) && !targetEnvironment(macCatalyst)
+        #elseif canImport(AppKit)
         // macOS: 图库 / 文件夹
         let button = Button {
             showSourceDialog = true
@@ -409,7 +410,8 @@ struct ProductFormView: View {
         }
     }
 
-    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+    // P1-6: 已关闭 Mac Catalyst
+    #if canImport(AppKit)
     private func handleImportedFiles(_ result: Result<[URL], any Error>) {
         switch result {
         case .success(let urls):

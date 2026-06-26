@@ -12,22 +12,22 @@ import SwiftData
 // MARK: - Step 1: Product Quick Select
 
 struct GenerateStepStep1Product: View {
-    @Environment(CoachMarkManager.self) private var coachMarkManager
     @Environment(Repository.self) private var repository
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Product.createdAt, order: .reverse) private var products: [Product]
 
     @Binding var selectedProduct: Product?
     @Binding var keyword: String
-    @Binding var isGenerating: Bool
+    @Binding var selectedChips: Set<String>
+    let isGenerating: Bool
 
-    @ScaledMetric private var thumbSize: CGFloat = 72
-    @ScaledMetric private var checkmarkSize: CGFloat = 16
-    @ScaledMetric private var checkBgSize: CGFloat = 18
+    @ScaledMetric private var thumbSize: CGFloat = 60
+    @ScaledMetric private var checkmarkSize: CGFloat = 14
+    @ScaledMetric private var checkBgSize: CGFloat = 16
     @ScaledMetric private var thumbFontSize: CGFloat = 12
 
     private var adaptiveThumbSize: CGFloat {
-        max(thumbSize, Adaptive.thumbSize)
+        max(thumbSize, Adaptive.thumbSize - 12)  // 整体比 Adaptive 默认小一档，留出 badge 空间
     }
 
     var body: some View {
@@ -50,30 +50,33 @@ struct GenerateStepStep1Product: View {
     }
 
     // MARK: - Product Thumb Strip
-
-    private static let quickSelectLimit = 6
+    //
+    // 不再限制 6 个产品 — 用户全部产品都展示，左右滑动浏览。
+    // 勾选标记通过 padding 留出空间避免被图片圆角 clip 遮挡。
 
     private var productThumbStrip: some View {
-        let visible = Array(products.prefix(Self.quickSelectLimit))
-        let hasMore = products.count > Self.quickSelectLimit
-        return ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(visible) { product in
+                ForEach(products) { product in
                     productThumbCard(product)
                 }
-                if hasMore {
-                    moreProductsCard
-                }
             }
+            .padding(.vertical, 2)
         }
     }
 
     private func productThumbCard(_ product: Product) -> some View {
         let isSelected = selectedProduct?.id == product.id
+        // 给勾标记预留 12pt 的"耳朵"空间 + 整体缩到 60pt，让 badge 完全在 image 外
+        let reservedEdge: CGFloat = 12
         return Button {
             withAnimation(.spring(duration: 0.2, bounce: 0.2)) {
                 if isSelected {
+                    // 取消选中产品：同步清空 keyword + 已选 chip Set
+                    // — "03 关键词里我填的" 都跟产品相关，产品取消选了这些就清掉
                     selectedProduct = nil
+                    keyword = ""
+                    selectedChips.removeAll()
                 } else {
                     selectedProduct = product
                     keyword = product.name + " " + product.sellingPoint
@@ -81,7 +84,8 @@ struct GenerateStepStep1Product: View {
             }
         } label: {
             VStack(spacing: 6) {
-                ZStack(alignment: .topTrailing) {
+                ZStack(alignment: .topLeading) {
+                    // 1) 缩略图本体（左上对齐）
                     Group {
                         if let firstPath = product.imagePaths.first,
                            let img = loadThumbnail(path: firstPath) {
@@ -89,7 +93,6 @@ struct GenerateStepStep1Product: View {
                                 .resizable()
                                 .scaledToFill()
                                 .frame(width: adaptiveThumbSize, height: adaptiveThumbSize)
-                                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
                         } else {
                             RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
                                 .fill(Color.surfaceMuted)
@@ -101,56 +104,59 @@ struct GenerateStepStep1Product: View {
                                 )
                         }
                     }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
-                            .stroke(isSelected ? Color.brand : Color.clear, lineWidth: isSelected ? 2 : 1)
-                    )
-                    .shadow(color: isSelected ? Color.brand.opacity(0.15) : Color.clear, radius: 4)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                    .frame(width: adaptiveThumbSize, height: adaptiveThumbSize)
 
+                    // 2) 选中描边（独立 RoundedRectangle，frame 比 image 大 4pt 然后 offset (-2, -2)，
+                    //    让 2pt stroke 落在 image 边缘外 1pt，完整一圈不再被 image 的 clip 切掉）
                     if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: checkmarkSize, weight: .semibold))
-                            .foregroundStyle(Color.brand)
-                            .background(Circle().fill(Color.surface).frame(width: checkBgSize, height: checkBgSize))
-                            .offset(x: 6, y: -6)
+                        RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+                            .stroke(Color.brand, lineWidth: 2)
+                            .frame(width: adaptiveThumbSize + 4, height: adaptiveThumbSize + 4)
+                            .shadow(color: Color.brand.opacity(0.15), radius: 4)
+                            .offset(x: -2, y: -2)
+                    }
+
+                    // 3) 勾标记 — 圆心推到 image 右上角**正外**（圆心 = image 边 + 0），
+                    //    让 8pt 半径的圆心完全在 image 外，**不再压图**。
+                    if isSelected {
+                        CheckmarkBadge(size: checkmarkSize, bgSize: checkBgSize)
+                            .offset(
+                                x: adaptiveThumbSize - checkBgSize / 2,
+                                y: -checkBgSize / 2
+                            )
                     }
                 }
+                .frame(width: adaptiveThumbSize + reservedEdge,
+                       height: adaptiveThumbSize + reservedEdge)
+                .contentShape(Rectangle())
+
                 Text(product.name)
                     .font(.system(size: thumbFontSize, weight: .medium))
                     .foregroundStyle(isSelected ? Color.brand : Color.ink)
                     .lineLimit(1)
-                    .frame(width: adaptiveThumbSize)
+                    .frame(width: adaptiveThumbSize + reservedEdge)
             }
         }
         .buttonStyle(.plain)
     }
 
-    private var moreProductsCard: some View {
-        NavigationLink {
-            ProductListView()
-        } label: {
-            VStack(spacing: 6) {
-                RoundedRectangle(cornerRadius: Radius.sm, style: .continuous)
-                    .fill(Color.brandSoft)
-                    .frame(width: 56, height: 56)
-                    .overlay(
-                        VStack(spacing: 2) {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Color.brand)
-                            Text("更多")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(Color.brand)
-                        }
-                    )
-                Text("查看全部")
-                    .font(.system(size: 12, weight: .medium))
+    /// 选中标记：白底圆形 + 品牌色对勾 — 独立 view，不被外层 clip 影响
+    private struct CheckmarkBadge: View {
+        let size: CGFloat
+        let bgSize: CGFloat
+
+        var body: some View {
+            ZStack {
+                Circle()
+                    .fill(Color.surface)
+                    .frame(width: bgSize, height: bgSize)
+                    .shadow(color: Color.black.opacity(0.12), radius: 2, x: 0, y: 1)
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: size, weight: .semibold))
                     .foregroundStyle(Color.brand)
-                    .lineLimit(1)
-                    .frame(width: 56)
             }
         }
-        .buttonStyle(.plain)
     }
 
     private func loadThumbnail(path: String) -> Image? {
@@ -284,14 +290,13 @@ struct GenerateStepStep2AdType: View {
 // MARK: - Step 3: Keyword Input
 
 struct GenerateStepStep3Keyword: View {
-    @Environment(CoachMarkManager.self) private var coachMarkManager
     @Environment(Repository.self) private var repository
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Product.createdAt, order: .reverse) private var products: [Product]
 
     @Binding var keyword: String
     @Binding var showStep3Tip: Bool
-    @Binding var selectedSuggestions: Set<String>
+    @Binding var selectedChips: Set<String>
     @Binding var trendingKeywords: [String]
     @Binding var isLoadingTrending: Bool
     @Binding var showInspirationPicker: Bool
@@ -303,42 +308,59 @@ struct GenerateStepStep3Keyword: View {
     var body: some View {
         let isCollapsed = keywordCollapsed
         return VStack(alignment: .leading, spacing: 0) {
-            Button {
-                HapticManager.lightImpact()
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    if isCollapsed { keywordCollapsed = false }
-                    else { keywordCollapsed = true }
-                }
-            } label: {
-                HStack(spacing: Spacing.sm) {
-                    stepBadge(3, active: !isCollapsed)
-                    Text("产品关键词").editorialLabel()
-                    Spacer()
-                    if !isCollapsed {
-                        if isLoadingTrending {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Button {
-                                trendingKeywordsToken += 1
-                            } label: {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(Color.brand)
-                                    .frame(width: 32, height: 32)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
+            // Header: 拆掉嵌套 Button — 左侧"标题区"是可点击折叠，右侧"刷新/箭头"独立 button
+            // 旧版本整个 header 是个 Button，内部又嵌刷新 Button，被外层吞事件导致第一次刷不动
+            HStack(spacing: Spacing.sm) {
+                Button {
+                    HapticManager.lightImpact()
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        keywordCollapsed.toggle()
                     }
+                } label: {
+                    HStack(spacing: Spacing.sm) {
+                        stepBadge(3, active: !isCollapsed)
+                        Text("产品关键词").editorialLabel()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 8)
+
+                if !isCollapsed {
+                    if isLoadingTrending {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button {
+                            HapticManager.lightImpact()
+                            trendingKeywordsToken += 1
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.brand)
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Button {
+                    HapticManager.lightImpact()
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        keywordCollapsed.toggle()
+                    }
+                } label: {
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.ink3)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.lg)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, Spacing.lg)
+            .padding(.top, Spacing.lg)
 
             if !isCollapsed {
                 VStack(alignment: .leading, spacing: Spacing.md) {
@@ -376,6 +398,7 @@ struct GenerateStepStep3Keyword: View {
     }
 
     @AppStorage("keyword_collapse") private var keywordCollapsed = false
+    @FocusState private var isKeywordFocused: Bool
 
     private var keywordInputArea: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -390,6 +413,8 @@ struct GenerateStepStep3Keyword: View {
                 TextEditor(text: $keyword)
                     .font(Typography.bodySmall)
                     .scrollContentBackground(.hidden)
+                    .scrollDisabled(!isKeywordFocused)   // 未聚焦时滚轮事件穿透到外层 ScrollView
+                    .focused($isKeywordFocused)
                     .frame(minHeight: 80, maxHeight: 100)
             }
             .padding(Spacing.md)
@@ -398,7 +423,7 @@ struct GenerateStepStep3Keyword: View {
                 if !keyword.isEmpty {
                     Button {
                         keyword = ""
-                        selectedSuggestions.removeAll()
+                        selectedChips.removeAll()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 14))
@@ -497,7 +522,9 @@ struct GenerateStepStep3Keyword: View {
             } else {
                 FlowLayout(spacing: Spacing.sm) {
                     ForEach(trendingKeywords, id: \.self) { item in
-                        let isSelected = selectedSuggestions.contains(item)
+                        // 选中态由 selectedChips Set 追踪（**不**从 keyword 文本算）—
+                        // 这样用户手输入的 token 不会"被判定为"是 LLM 搜出来的 chip
+                        let isSelected = selectedChips.contains(item)
                         keywordChip(item: item, isSelected: isSelected)
                     }
                 }
@@ -510,13 +537,16 @@ struct GenerateStepStep3Keyword: View {
             HapticManager.lightImpact()
             withAnimation(.spring(duration: 0.2, bounce: 0.2)) {
                 if isSelected {
-                    selectedSuggestions.remove(item)
+                    // 取消选中：从 Set 移除 + 从 keyword 文本中**精确 token 删除**该 chip
+                    selectedChips.remove(item)
+                    let tokens = keyword.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+                    keyword = tokens.filter { $0 != item }.joined(separator: " ")
                 } else {
-                    selectedSuggestions.insert(item)
-                    if keyword.isEmpty {
-                        keyword = item
-                    } else if !keyword.contains(item) {
-                        keyword += " " + item
+                    // 选中：Set 加入 + append 到 keyword 文本末尾
+                    selectedChips.insert(item)
+                    let tokens = keyword.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+                    if !tokens.contains(item) {
+                        keyword = keyword.isEmpty ? item : keyword + " " + item
                     }
                 }
             }

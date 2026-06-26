@@ -21,43 +21,53 @@ struct LLMTextGeneratorError: LocalizedError {
 final class LLMTextGenerator: GeneratorProtocol {
 
     // MARK: - Config
+    //
+    // 全部走 LLMConfigStore：默认模式共享 baseURL+key，自定义模式按 text 独立读。
+    // 旧版直接读 UserDefaults 已废弃 — 仍保留兼容，外部若需要 raw 访问可走 store。
 
-    private var contentURL: String { UserDefaults.standard.string(forKey: "llm_content_url") ?? "" }
-    private var contentKey: String { UserDefaults.standard.string(forKey: "llm_content_key") ?? "" }
-    /// 实际使用的内容模型：开了"高质量模式"且 quality 字段非空时用 quality，否则用 fast。
-    /// 两个字段共用同一个 URL/Key（同厂商不同模型名）。
-    private var contentModel: String {
-        let d = UserDefaults.standard
-        let highQuality = d.bool(forKey: "llm_high_quality_mode")
-        let quality = d.string(forKey: "llm_content_model_quality") ?? ""
-        let fast = d.string(forKey: "llm_content_model") ?? ""
-        if highQuality && !quality.isEmpty { return quality }
-        return fast
+    /// 文本生成的 endpoint — 自动把 baseURL 规范化为 `POST {baseURL}/chat/completions`
+    /// - 兼容用户已经手填 `/chat/completions` 的情况（不重复拼）
+    /// - 兼容 trailing slash（`https://x.com/v1/` → 不留 `//`）
+    /// - 所有厂商（Agnes / DeepSeek / 豆包）走 OpenAI 兼容 SSE，端点都缺不了 `/chat/completions`
+    private var contentURL: String {
+        Self.normalizeChatCompletionsURL(LLMConfigStore.config(for: .text).baseURL)
+    }
+    private var contentKey: String { LLMConfigStore.config(for: .text).apiKey }
+    private var contentModel: String { LLMConfigStore.config(for: .text).model }
+
+    private var titleURL: String { contentURL }
+    private var titleKey: String { contentKey }
+    private var titleModel: String { contentModel }
+
+    /// 把 `https://x.com/v1` 规范化为 `https://x.com/v1/chat/completions`
+    /// - 已有 `/chat/completions` → 原样返回
+    /// - 以 `/` 结尾 → 去掉再加
+    /// - 否则直接拼
+    static func normalizeChatCompletionsURL(_ base: String) -> String {
+        let trimmed = base.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+        let suffix = "/chat/completions"
+        if trimmed.hasSuffix(suffix) { return trimmed }
+        let noSlash = trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed
+        return noSlash + suffix
     }
 
-    private var titleURL: String { UserDefaults.standard.string(forKey: "llm_title_url") ?? "" }
-    private var titleKey: String { UserDefaults.standard.string(forKey: "llm_title_key") ?? "" }
-    private var titleModel: String { UserDefaults.standard.string(forKey: "llm_title_model") ?? "" }
+    /// 文本（Agnes）配置是否齐全。GenerateView 用这个值决定走真模型还是 Mock。
+    static var isConfigured: Bool { LLMConfigStore.isTextConfigured }
 
-    /// 文本（内容大模型）配置是否齐全。GenerateView 用这个值决定走真模型还是 Mock。
-    static var isConfigured: Bool {
-        let url = UserDefaults.standard.string(forKey: "llm_content_url") ?? ""
-        let key = UserDefaults.standard.string(forKey: "llm_content_key") ?? ""
-        let model = UserDefaults.standard.string(forKey: "llm_content_model") ?? ""
-        return !url.isEmpty && !key.isEmpty && !model.isEmpty
-    }
-
-    /// 标题小模型是否齐全。未配置时 fallback 用 content 模型一次性出标题。
-    static var titleConfigured: Bool {
-        let url = UserDefaults.standard.string(forKey: "llm_title_url") ?? ""
-        let key = UserDefaults.standard.string(forKey: "llm_title_key") ?? ""
-        let model = UserDefaults.standard.string(forKey: "llm_title_model") ?? ""
-        return !url.isEmpty && !key.isEmpty && !model.isEmpty
-    }
+    /// 标题复用文案模型（无独立标题模型）。
+    static var titleConfigured: Bool { false }
 
     // MARK: - GeneratorProtocol
 
     func generate(_ req: GenerateRequest) async throws -> GenerateResponse {
+        try await generateStream(req, onChunk: { _ in })
+    }
+
+    /// 流式生成：每收一段 LLM token 调 onChunk(receivedChars)，让 UI 显示实时进度。
+    /// 内容大模型用 chatStream 拿增量（边收边 yield），标题小模型仍用 chat 一次拿（快）。
+    /// 最终 JSON 解析逻辑复用 chatJSON 的 stripCodeFence 兼容层。
+    func generateStream(_ req: GenerateRequest, onChunk: @MainActor (Int) -> Void) async throws -> GenerateResponse {
         try Task.checkCancellation()
 
         let system = systemPrompt(product: req.product)
@@ -67,13 +77,51 @@ final class LLMTextGenerator: GeneratorProtocol {
             keywordHint: req.keywordHint
         )
 
-        // 并行：标题小模型 + 内容大模型（JSON）。
-        // 标题模型未配置或失败时静默 fallback 到 content 模型 JSON 里的 noteTitle。
-        async let titleStr: String? = generateTitleIfConfigured(system: system, user: user)
-        async let contentJSON: [String: Any] = chatJSON(system: system, user: user)
+        // user 末尾补 JSON schema 提示（跟 chatJSON 保持一致，否则 LLM 可能不返回合法 JSON）
+        let userWithSchema = user + """
 
-        let json = try await contentJSON
+
+        请严格输出 JSON 对象（不要任何 markdown 代码块标记），字段如下：
+        {
+          "noteTitle": "小红书标题，≤20 字，带 1-2 个 emoji",
+          "content": "笔记正文，约 250 字，分 4-6 段，带 emoji",
+          "tags": ["话题1", "话题2", "..."],   // 6-8 个，不含 # 号
+          "imageSuggestion": "封面图中文描述，给设计/摄影看",
+          "imagePrompt": "封面图英文提示词，给文生图模型用，描述构图/光线/色调/材质",
+          "videoPrompt": "3 秒短视频英文提示词，描述镜头运动/光线/产品动作，结尾加 ', 3 seconds'",
+          "suggestion": "对这篇笔记的优化建议，一句话",
+          "easterEgg": "1 句小巧的口播彩蛋（≤15 字）"
+        }
+        """
+
+        // 并行：标题小模型（非流式，快）+ 内容大模型（流式，边收边回调 onChunk）
+        async let titleStr: String? = generateTitleIfConfigured(system: system, user: user)
+
+        // 用 chatStream 累积内容模型的 JSON 文本
+        let messages: [ChatTurn] = [.system(system), .user(userWithSchema)]
+        var accumulated = ""
+        let stream = chatStream(messages: messages, timeoutOverride: 60)
+        for try await chunk in stream {
+            try Task.checkCancellation()
+            accumulated += chunk
+            // 通知 UI 进度
+            await MainActor.run { onChunk(accumulated.count) }
+        }
         try Task.checkCancellation()
+
+        // JSON 解析（兼容 markdown 代码块）
+        let json: [String: Any]
+        if let data = accumulated.data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            json = obj
+        } else {
+            let cleaned = stripCodeFence(accumulated)
+            guard let cleanedData = cleaned.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: cleanedData) as? [String: Any] else {
+                throw LLMTextGeneratorError(message: "模型未返回合法 JSON：\(accumulated.prefix(200))")
+            }
+            json = obj
+        }
         var response = try parseFullResponse(json: json)
 
         if let title = await titleStr, !title.isEmpty {
@@ -163,7 +211,7 @@ final class LLMTextGenerator: GeneratorProtocol {
         adType: AdType,
         imageSuggestion: String
     ) async throws -> [String] {
-        let n = max(1, min(count, 6))
+        let n = max(1, min(count, 9))
         guard n > 1 else { return [basePrompt.isEmpty ? "" : basePrompt] }
 
         let system = systemPrompt(product: product)
@@ -252,18 +300,6 @@ final class LLMTextGenerator: GeneratorProtocol {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    func transformText(command: String, selectedText: String, context: String) async throws -> String {
-        guard Self.isConfigured else {
-            throw LLMTextGeneratorError(message: "请先在「我的 → 大模型配置 → 内容生成」中填写大模型信息")
-        }
-        var system = "你是小红书文案助手。根据用户的指令（润色/改写/扩写/缩写/换风格），对选中的文字进行处理。只返回处理后的文字，不要解释，不要加引号包裹。"
-        if !context.isEmpty {
-            system += "\n上下文：\(context)"
-        }
-        let user = "指令：\(command)\n原文：\(selectedText)"
-        return try await chatPlain(system: system, user: user)
-    }
-
     // MARK: - Prompt assembly
 
     private func systemPrompt(product: Product?) -> String {
@@ -338,7 +374,10 @@ final class LLMTextGenerator: GeneratorProtocol {
     }
 
     /// 用 content 大模型的配置发请求。
-    private func chatPlain(system: String, user: String, jsonObject: Bool = false) async throws -> String {
+    /// - Parameter reasoningEffort: 思考强度 ("low"/"medium"/"high"/nil)。默认 "low" ——
+    ///   用户多次反馈 regenerate / diagnose 等需要快速响应的场景太慢，
+    ///   强制让模型走最低思考。某些模型不支持这个参数会被 API 拒绝（fallback 见 chatCompletions）。
+    private func chatPlain(system: String, user: String, jsonObject: Bool = false, reasoningEffort: String? = "low") async throws -> String {
         try await chatCompletions(
             url: contentURL,
             apiKey: contentKey,
@@ -346,7 +385,8 @@ final class LLMTextGenerator: GeneratorProtocol {
             system: system,
             user: user,
             jsonObject: jsonObject,
-            logTag: "content"
+            logTag: "content",
+            reasoningEffort: reasoningEffort
         )
     }
 
@@ -533,22 +573,24 @@ final class LLMTextGenerator: GeneratorProtocol {
         if jsonObject {
             body["response_format"] = ["type": "json_object"]
         }
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
+        // 先发一次；如果模型不支持 response_format（Ark DeepSeek 等会 400），自动降级重试
         let started = Date()
-        let (data, resp): (Data, URLResponse)
-        do {
-            (data, resp) = try await Self.dataWithAutoRetry(for: req, logTag: logTag)
-        } catch {
-            DebugLog.shared.log(.error, .llm, "[\(logTag)] network failure", details: error.localizedDescription)
-            throw Self.friendlyNetworkError(error, logTag: logTag)
-        }
+        let (data, resp) = try await Self.sendWithJsonFallback(
+            body: body,
+            messages: messages,
+            jsonObjectRequested: jsonObject,
+            req: req,
+            logTag: logTag
+        )
+
         guard let http = resp as? HTTPURLResponse else {
             throw LLMTextGeneratorError(message: "无 HTTP 响应")
         }
         let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
         guard (200..<300).contains(http.statusCode) else {
             let snippet = String(data: data.prefix(300), encoding: .utf8) ?? ""
+            // 已经在 sendWithJsonFallback 降级过一次了；这里就是真错
             DebugLog.shared.log(.error, .llm, "[\(logTag)] HTTP \(http.statusCode) failed",
                 details: "elapsed=\(elapsedMs)ms\nbody=\(snippet)")
             throw LLMTextGeneratorError(message: "HTTP \(http.statusCode)：\(snippet)")
@@ -574,6 +616,7 @@ final class LLMTextGenerator: GeneratorProtocol {
 
     /// 通用 chat completions（OpenAI 兼容）。被 chatPlain（content 大模型）和 title 小模型共用。
     /// - Parameter logTag: 日志里用来区分是 title 还是 content 端点的 tag。
+    /// - Parameter reasoningEffort: 思考强度，nil = 不传该参数（由模型默认），"low"/"medium"/"high" = 显式控制。
     private func chatCompletions(
         url urlStr: String,
         apiKey: String,
@@ -582,7 +625,8 @@ final class LLMTextGenerator: GeneratorProtocol {
         user: String,
         jsonObject: Bool,
         logTag: String,
-        timeoutOverride: TimeInterval? = nil
+        timeoutOverride: TimeInterval? = nil,
+        reasoningEffort: String? = nil
     ) async throws -> String {
         guard !urlStr.isEmpty, !apiKey.isEmpty, !model.isEmpty else {
             DebugLog.shared.log(.error, .llm, "[\(logTag)] config missing")
@@ -626,17 +670,24 @@ final class LLMTextGenerator: GeneratorProtocol {
         if jsonObject {
             body["response_format"] = ["type": "json_object"]
         }
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let started = Date()
-        let (data, resp): (Data, URLResponse)
-        do {
-            (data, resp) = try await Self.dataWithAutoRetry(for: req, logTag: logTag)
-        } catch {
-            // Task.cancel() 时 URLSession 会抛 URLError.cancelled，调用方需正确处理
-            DebugLog.shared.log(.error, .llm, "[\(logTag)] network failure", details: error.localizedDescription)
-            throw Self.friendlyNetworkError(error, logTag: logTag)
+        // 思考强度：默认调 chatPlain 时会传 "low"，让 LLM 走最低思考路径，
+        // 速度能差 2-5x。某些老模型 / 不支持此参数的 API 会 400，
+        // 这种情况让 sendWithJsonFallback 兜底（去掉该参数重试）。
+        if let effort = reasoningEffort {
+            body["reasoning_effort"] = effort
         }
+        let started = Date()
+        let (data, resp) = try await Self.sendWithJsonFallback(
+            body: body,
+            messages: [
+                ChatTurn(role: "system", content: system),
+                ChatTurn(role: "user", content: user)
+            ],
+            jsonObjectRequested: jsonObject,
+            req: req,
+            logTag: logTag,
+            reasoningEffort: reasoningEffort
+        )
         guard let http = resp as? HTTPURLResponse else {
             DebugLog.shared.log(.error, .llm, "[\(logTag)] no HTTP response")
             throw LLMTextGeneratorError(message: "无 HTTP 响应")
@@ -707,6 +758,108 @@ final class LLMTextGenerator: GeneratorProtocol {
     }
 
     // MARK: - Network resilience (auto-retry + friendly errors)
+
+    /// 发送请求；如果模型不支持 `response_format: json_object`（典型如 Ark 上的 DeepSeek 系列），
+    /// 自动移除该字段、并在 system 消息末尾追加「请用合法 JSON 格式输出」提示，重试一次。
+    /// - Returns: (Data, URLResponse) — 已经过降级链；非 2xx 时由调用方抛错
+    private static func sendWithJsonFallback(
+        body: [String: Any],
+        messages: [ChatTurn],
+        jsonObjectRequested: Bool,
+        req: URLRequest,
+        logTag: String,
+        reasoningEffort: String? = nil
+    ) async throws -> (Data, URLResponse) {
+        // ---- 第一次：原样请求 ----
+        let started = Date()
+        var currentReq = req
+        currentReq.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (firstData, firstResp): (Data, URLResponse)
+        do {
+            (firstData, firstResp) = try await dataWithAutoRetry(for: currentReq, logTag: logTag)
+        } catch {
+            throw friendlyNetworkError(error, logTag: logTag)
+        }
+        guard let http = firstResp as? HTTPURLResponse else {
+            throw LLMTextGeneratorError(message: "无 HTTP 响应")
+        }
+        // ---- 降级 1：response_format=json_object 不支持 → 去掉该参数，prompt 加 JSON 约束 ----
+        if jsonObjectRequested && (400..<500).contains(http.statusCode) {
+            let snippet = String(data: firstData.prefix(400), encoding: .utf8) ?? ""
+            if snippet.contains("json_object") || snippet.contains("response_format") {
+                DebugLog.shared.log(.warn, .llm,
+                    "[\(logTag)] model does not support response_format=json_object, falling back to prompt-only JSON",
+                    details: "elapsed=\(Int(Date().timeIntervalSince(started) * 1000))ms status=\(http.statusCode)"
+                )
+                return try await retryWithoutJsonObject(
+                    body: body, messages: messages, req: req, logTag: logTag,
+                    reasoningEffort: reasoningEffort
+                )
+            }
+        }
+        // ---- 降级 2：reasoning_effort 不支持 → 去掉该参数重试 ----
+        if reasoningEffort != nil && (400..<500).contains(http.statusCode) {
+            let snippet = String(data: firstData.prefix(400), encoding: .utf8) ?? ""
+            if snippet.contains("reasoning_effort") {
+                DebugLog.shared.log(.warn, .llm,
+                    "[\(logTag)] model does not support reasoning_effort=\(reasoningEffort!), retrying without it",
+                    details: "elapsed=\(Int(Date().timeIntervalSince(started) * 1000))ms status=\(http.statusCode)"
+                )
+                var fallbackBody = body
+                fallbackBody.removeValue(forKey: "reasoning_effort")
+                var retryReq = req
+                retryReq.httpBody = try JSONSerialization.data(withJSONObject: fallbackBody)
+                let (retryData, retryResp) = try await dataWithAutoRetry(for: retryReq, logTag: logTag)
+                return (retryData, retryResp)
+            }
+        }
+        // 不需要降级 — 直接把第一次结果返回（成功或真错由调用方处理）
+        return (firstData, firstResp)
+    }
+
+    /// 降级辅助：去掉 response_format，prompt 追加 JSON 约束
+    private static func retryWithoutJsonObject(
+        body: [String: Any],
+        messages: [ChatTurn],
+        req: URLRequest,
+        logTag: String,
+        reasoningEffort: String?
+    ) async throws -> (Data, URLResponse) {
+        var fallbackBody = body
+        fallbackBody.removeValue(forKey: "response_format")
+        // 保留 reasoning_effort（除非也不支持 — 让 sendWithJsonFallback 第二次降级处理）
+        if reasoningEffort != nil {
+            fallbackBody["reasoning_effort"] = reasoningEffort
+        }
+        var newMessages = messages
+        let jsonHint = "\n\n【输出格式要求】请严格用合法 JSON 输出，不要包含任何 JSON 之外的内容（不要 markdown 代码块标记）。"
+        if let sIdx = newMessages.firstIndex(where: { $0.role == "system" }) {
+            newMessages[sIdx] = ChatTurn(role: "system", content: newMessages[sIdx].content + jsonHint)
+        } else if let fIdx = newMessages.firstIndex(where: { $0.role == "user" }) {
+            newMessages[fIdx] = ChatTurn(role: newMessages[fIdx].role, content: newMessages[fIdx].content + jsonHint)
+        }
+        fallbackBody["messages"] = newMessages.map { ["role": $0.role, "content": $0.content] }
+
+        var retryReq = req
+        retryReq.httpBody = try JSONSerialization.data(withJSONObject: fallbackBody)
+        let (retryData, retryResp) = try await dataWithAutoRetry(for: retryReq, logTag: logTag)
+        // 如果这次又因为 reasoning_effort 失败，让外层 sendWithJsonFallback 的降级 2 接管
+        if let http = retryResp as? HTTPURLResponse, (400..<500).contains(http.statusCode) {
+            let snippet = String(data: retryData.prefix(400), encoding: .utf8) ?? ""
+            if snippet.contains("reasoning_effort") {
+                DebugLog.shared.log(.warn, .llm,
+                    "[\(logTag)] model does not support reasoning_effort after json fallback, retrying once more",
+                    details: "status=\(http.statusCode)"
+                )
+                var fallback2 = fallbackBody
+                fallback2.removeValue(forKey: "reasoning_effort")
+                retryReq.httpBody = try JSONSerialization.data(withJSONObject: fallback2)
+                let (d, r) = try await dataWithAutoRetry(for: retryReq, logTag: logTag)
+                return (d, r)
+            }
+        }
+        return (retryData, retryResp)
+    }
 
     /// 包装 URLSession.shared.data(for:)。遇到瞬时网络错（连接中断 / 暂时不可达 / DNS 等）
     /// 自动延时 400ms 重试 1 次；其他错误（包括 cancelled / HTTP 错误）直接抛。

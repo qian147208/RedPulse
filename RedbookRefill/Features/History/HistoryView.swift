@@ -470,9 +470,10 @@ struct ResultDetailView: View {
     let record: GenerationRecord
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(RegenSession.self) private var regenSession
     @Query private var allProducts: [Product]
 
-    @State private var jimengService = JimengService()
+    @State private var jimengService = AgnesService()
     @State private var imageCount: Int = 1
     @State private var isPreparingPrompts: Bool = false
     @State private var generator: GeneratorProtocol =
@@ -482,6 +483,10 @@ struct ResultDetailView: View {
     private var effectiveImageURLs: [String] {
         jimengService.generatedImageURLs.isEmpty ? record.imageUrls : jimengService.generatedImageURLs
     }
+
+    // 从 regenSession 读运行状态 — 这样切到别的 tab 再切回时仍能看到"正在生成"提示
+    private var isImageJobRunning: Bool { regenSession.isImageRunning(recordId: record.id) }
+    private var isImageJobPreparing: Bool { regenSession.isImagePreparing(recordId: record.id) }
 
     var body: some View {
         ScrollView {
@@ -623,7 +628,7 @@ struct ResultDetailView: View {
             HStack(spacing: Spacing.sm) {
                 Text("AI 配图生成").editorialLabel()
                 Spacer()
-                if effectiveImageURLs.count > 1 && !jimengService.isGeneratingImage && !isPreparingPrompts {
+                if effectiveImageURLs.count > 1 && !isImageJobRunning && !isImageJobPreparing {
                     Button {
                         Task { await saveAllImages() }
                     } label: {
@@ -634,7 +639,7 @@ struct ResultDetailView: View {
                     }
                     .buttonStyle(GhostButtonStyle())
                 }
-                if !effectiveImageURLs.isEmpty && !jimengService.isGeneratingImage && !isPreparingPrompts {
+                if !effectiveImageURLs.isEmpty && !isImageJobRunning && !isImageJobPreparing {
                     Button {
                         Task { await generateImages() }
                     } label: {
@@ -649,9 +654,9 @@ struct ResultDetailView: View {
 
             if !jimengService.isConfigValidForImage {
                 configMissingHint("请先在「我的 → 大模型配置 → 图片生成」中填写 Ark Key 或 AK/SK + req_key")
-            } else if isPreparingPrompts {
+            } else if isImageJobPreparing {
                 generatingStatus("正在为 \(imageCount) 张图扩出不同的提示词...")
-            } else if jimengService.isGeneratingImage {
+            } else if isImageJobRunning {
                 generatingStatus(imageCount > 1 ? "正在并行生成 \(imageCount) 张配图..." : "正在生成配图...")
             } else if let error = jimengService.imageError {
                 errorHint(error)
@@ -706,7 +711,7 @@ struct ResultDetailView: View {
         HStack(spacing: Spacing.sm) {
             Text("数量").editorialLabel()
             HStack(spacing: 6) {
-                ForEach([1, 2, 3, 4], id: \.self) { n in
+                ForEach(1...9, id: \.self) { n in
                     Button {
                         imageCount = n
                     } label: {
@@ -851,31 +856,49 @@ struct ResultDetailView: View {
     // MARK: - Image Generation
 
     private func generateImages() async {
-        let n = max(1, min(imageCount, 4))
-        var prompts: [String] = [record.imagePrompt]
-        if n > 1, let llm = generator as? LLMTextGenerator {
-            isPreparingPrompts = true
-            do {
-                prompts = try await llm.regenerateImagePrompts(
-                    count: n,
-                    basePrompt: record.imagePrompt,
-                    keyword: record.inputKeyword,
-                    product: nil,
-                    adType: AdType(rawValue: record.adType) ?? .feedAd,
-                    imageSuggestion: record.imageSuggestion
-                )
-            } catch {
-                prompts = Array(repeating: record.imagePrompt, count: n)
+        // 委托给 regenSession — 任务跨 view 生命周期，切到别的 tab 继续跑
+        let capturedRecordId = record.id
+        let capturedRecord = record
+        let capturedImageCount = imageCount
+        let capturedImagePrompt = record.imagePrompt
+        let capturedKeyword = record.inputKeyword
+        let capturedAdType = AdType(rawValue: record.adType) ?? .feedAd
+        let capturedImageSuggestion = record.imageSuggestion
+        let capturedReferenceImages = productReferenceImagesData()
+        let capturedGenerator = generator
+        let agnes = AgnesService()  // 任务内自建 — 不依赖 view-scoped service
+
+        regenSession.startImage(recordId: capturedRecordId) { [self] in
+            let n = max(1, min(capturedImageCount, 9))
+            var prompts: [String] = [capturedImagePrompt]
+            if n > 1, let llm = capturedGenerator as? LLMTextGenerator {
+                self.regenSession.setImagePreparing(recordId: capturedRecordId, isPreparing: true)
+                do {
+                    prompts = try await llm.regenerateImagePrompts(
+                        count: n,
+                        basePrompt: capturedImagePrompt,
+                        keyword: capturedKeyword,
+                        product: nil,
+                        adType: capturedAdType,
+                        imageSuggestion: capturedImageSuggestion
+                    )
+                } catch {
+                    prompts = Array(repeating: capturedImagePrompt, count: n)
+                }
+                self.regenSession.setImagePreparing(recordId: capturedRecordId, isPreparing: false)
+            } else if n > 1 {
+                prompts = Array(repeating: capturedImagePrompt, count: n)
             }
-            isPreparingPrompts = false
-        } else if n > 1 {
-            prompts = Array(repeating: record.imagePrompt, count: n)
-        }
-        let referenceImages = productReferenceImagesData()
-        await jimengService.generateImages(prompts: prompts, referenceImagesData: referenceImages)
-        if !jimengService.generatedImageURLs.isEmpty {
-            record.imageUrls = jimengService.generatedImageURLs
-            try? modelContext.save()
+            await agnes.generateImages(prompts: prompts, referenceImagesData: capturedReferenceImages)
+            if !agnes.generatedImageURLs.isEmpty {
+                capturedRecord.imageUrls = agnes.generatedImageURLs
+                // 主用 regenSession.mainContext（跨 view 持久），fallback 到 view 的 modelContext
+                do {
+                    try self.regenSession.mainContext.save()
+                } catch {
+                    try? self.modelContext.save()
+                }
+            }
         }
     }
 
@@ -925,7 +948,9 @@ struct ResultDetailView: View {
                 UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
             }
             #endif
-        } catch { }
+        } catch {
+            print("[HistoryView] 图片下载失败 \(url): \(error)")
+        }
     }
 
     private func saveAllImages() async {
@@ -949,7 +974,9 @@ struct ResultDetailView: View {
                 let (data, _) = try await URLSession.shared.data(from: remote)
                 let ext = remote.pathExtension.isEmpty ? "png" : remote.pathExtension
                 try data.write(to: dir.appendingPathComponent("redbook-image-\(idx + 1).\(ext)"))
-            } catch { }
+            } catch {
+                print("[HistoryView] 图片保存失败 \(url): \(error)")
+            }
         }
         #elseif canImport(UIKit)
         for url in urls {
@@ -959,7 +986,9 @@ struct ResultDetailView: View {
                 if let img = UIImage(data: data) {
                     UIImageWriteToSavedPhotosAlbum(img, nil, nil, nil)
                 }
-            } catch { }
+            } catch {
+                print("[HistoryView] 图片保存失败 \(url): \(error)")
+            }
         }
         #endif
     }

@@ -15,53 +15,34 @@ struct GenerateView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Query(sort: \Product.createdAt, order: .reverse) private var products: [Product]
 
-    @Environment(CoachMarkManager.self) private var coachMarkManager
-    @AppStorage("llm_high_quality_mode") private var highQualityMode: Bool = false
     @AppStorage("show_step3_tip") private var showStep3Tip = true
     @AppStorage("show_step4_tip") private var showStep4Tip = true
-    @AppStorage("has_seen_coach_marks_generate") private var hasSeenCoachMarksGenerate = false
 
-    @State private var selectedAdType: AdType = .feedAd
-    @State private var keyword: String = ""
-    @State private var hintText: String = ""
-    @State private var selectedSuggestions: Set<String> = []
-    @State private var trendingKeywords: [String] = []
-    @State private var isLoadingTrending = false
-    @State private var hintChips: [String] = [
-        "测评向", "干货风", "轻松搞笑", "好物分享",
-        "真实体验", "干货科普", "问号钩子", "避雷指南"
-    ]
-    @State private var isLoadingHints = false
+    // MARK: - 引导状态（SwiftUI popover 自管，iOS 17 严格顺序）
+    // 5 个独立 Bool state + 1 个 currentStep 跟踪进度
+    // 点 "知道了" 按钮 → dismiss 当前 popover + 推进 step → onChange 触发下一个 popover
+    @AppStorage("generate_onboarding_step") private var currentStep: Int = -1
+    @State private var showOnboardStep1: Bool = false
+    @State private var showOnboardStep2: Bool = false
+    @State private var showOnboardStep3: Bool = false
+    @State private var showOnboardStep4: Bool = false
+    @State private var showOnboardStep5: Bool = false
 
-    @State private var generatedRecord: GenerationRecord?
-    @State private var selectedProduct: Product? = nil
-    @State private var showInspirationPicker = false
-    @State private var inspirationPickerType: InspirationType = .keyword
-
-    /// 可折叠 section: 默认全部展开，用户可手动折叠
-    @State private var collapsedSections: Set<String> = []
-
-    // MARK: - Generation state
-    @State private var isGenerating = false
-    @State private var generateTask: Task<Void, Never>? = nil
-    @State private var showGenerateError = false
-    @State private var generateErrorMessage: String? = nil
+    // MARK: - 全部 state 移到 session（跨 view 持久 — 切 tab 不丢）
+    @Environment(GenerationSession.self) private var session
 
     /// 文本模型配置齐全时走真实 LLM，否则回退到 Mock。
     private var generator: GeneratorProtocol {
         LLMTextGenerator.isConfigured ? LLMTextGenerator() : MockGenerator()
     }
 
-    @State private var refreshHintsToken: Int = 0
-    @State private var trendingKeywordsToken: Int = 0
-
     var body: some View {
-        if let record = generatedRecord {
+        if let record = session.generatedRecord {
             ResultView(record: record)
                 .toolbar {
                     ToolbarItem(placement: .navigation) {
                         Button {
-                            generatedRecord = nil
+                            session.clearResult()
                         } label: {
                             Label("返回", systemImage: "chevron.left")
                         }
@@ -75,43 +56,91 @@ struct GenerateView: View {
     // MARK: - Layouts
 
     private var formCard: some View {
-        VStack(spacing: Spacing.lg) {
+        @Bindable var bindableSession = session
+        return VStack(spacing: Spacing.lg) {
             GenerateStepStep1Product(
-                selectedProduct: $selectedProduct,
-                keyword: $keyword,
-                isGenerating: $isGenerating
+                selectedProduct: $bindableSession.selectedProduct,
+                keyword: $bindableSession.keyword,
+                selectedChips: $bindableSession.selectedTrendingChips,
+                isGenerating: session.isGenerating
             )
             .cardStyle(padding: 0, radius: Radius.lg)
-            .coachMarkTarget("gen_product_select")
+            // Step 1: 选产品
+            // P0-4: popover 在 iPad/Mac 上箭头方向/定位行为不一致，改用 sheet 跨平台统一
+            .sheet(isPresented: $showOnboardStep1) {
+                OnboardingPopover(
+                    title: "选你的产品",
+                    message: "从这里挑一个之前录入的产品，或点 + 新建。所有 AI 生成都会围绕这个产品的卖点展开",
+                    icon: "square.grid.2x2.fill",
+                    onDismiss: {
+                        showOnboardStep1 = false
+                        currentStep = 1
+                    }
+                )
+            }
 
-            GenerateStepStep2AdType(selectedAdType: $selectedAdType)
+            GenerateStepStep2AdType(selectedAdType: $bindableSession.selectedAdType)
                 .cardStyle(padding: 0, radius: Radius.lg)
-                .coachMarkTarget("gen_ad_type")
+                // Step 2: 选广告类型
+                .sheet(isPresented: $showOnboardStep2) {
+                    OnboardingPopover(
+                        title: "选笔记类型",
+                        message: "信息流/搜索/品牌/带货 4 种风格，AI 会按你的目标调整标题和正文语气",
+                        icon: "rectangle.3.group.fill",
+                        onDismiss: {
+                            showOnboardStep2 = false
+                            currentStep = 2
+                        }
+                    )
+                }
 
             GenerateStepStep3Keyword(
-                keyword: $keyword,
+                keyword: $bindableSession.keyword,
                 showStep3Tip: $showStep3Tip,
-                selectedSuggestions: $selectedSuggestions,
-                trendingKeywords: $trendingKeywords,
-                isLoadingTrending: $isLoadingTrending,
-                showInspirationPicker: $showInspirationPicker,
-                inspirationPickerType: $inspirationPickerType,
-                trendingKeywordsToken: $trendingKeywordsToken
+                selectedChips: $bindableSession.selectedTrendingChips,
+                trendingKeywords: $bindableSession.trendingKeywords,
+                isLoadingTrending: $bindableSession.isLoadingTrending,
+                showInspirationPicker: $bindableSession.showInspirationPicker,
+                inspirationPickerType: $bindableSession.inspirationPickerType,
+                trendingKeywordsToken: $bindableSession.trendingKeywordsToken
             )
             .cardStyle(padding: 0, radius: Radius.lg)
-            .coachMarkTarget("gen_keyword")
+            // Step 3: 关键词
+            .sheet(isPresented: $showOnboardStep3) {
+                OnboardingPopover(
+                    title: "写关键词",
+                    message: "可以自己写，也可以从 AI 推荐的热门词里挑。选中的词会变成标题和正文的核心",
+                    icon: "text.magnifyingglass",
+                    onDismiss: {
+                        showOnboardStep3 = false
+                        currentStep = 3
+                    }
+                )
+            }
 
             GenerateStepStep4Hint(
-                hintText: $hintText,
-                hintChips: $hintChips,
-                isLoadingHints: $isLoadingHints,
+                hintText: $bindableSession.hintText,
+                selectedChips: $bindableSession.selectedHintChips,
+                hintChips: $bindableSession.hintChips,
+                isLoadingHints: $bindableSession.isLoadingHints,
                 showStep4Tip: $showStep4Tip,
-                showInspirationPicker: $showInspirationPicker,
-                inspirationPickerType: $inspirationPickerType,
-                refreshHintsToken: $refreshHintsToken
+                showInspirationPicker: $bindableSession.showInspirationPicker,
+                inspirationPickerType: $bindableSession.inspirationPickerType,
+                refreshHintsToken: $bindableSession.refreshHintsToken
             )
             .cardStyle(padding: 0, radius: Radius.lg)
-            .coachMarkTarget("gen_style")
+            // Step 4: 风格
+            .sheet(isPresented: $showOnboardStep4) {
+                OnboardingPopover(
+                    title: "选写作风格",
+                    message: "测评向 / 干货风 / 种草向，AI 按风格生成匹配的语气和节奏",
+                    icon: "paintpalette.fill",
+                    onDismiss: {
+                        showOnboardStep4 = false
+                        currentStep = 4
+                    }
+                )
+            }
         }
     }
 
@@ -125,7 +154,6 @@ struct GenerateView: View {
                                 .font(.system(size: Adaptive.heroFontSize, weight: .bold, design: .serif))
                                 .foregroundStyle(Color.ink)
                             Spacer()
-                            QualityModeToggle(isGenerating: $isGenerating)
                         }
                         .padding(.horizontal, Adaptive.horizontalPageMargin)
                         .padding(.top, Spacing.md)
@@ -143,21 +171,44 @@ struct GenerateView: View {
 
             VStack(spacing: 0) {
                 Spacer()
-                GenerateActionButton(
-                    isGenerating: $isGenerating,
-                    onGenerate: { handleGenerate() }
-                )
-                .padding(.horizontal, Adaptive.horizontalPageMargin)
-                .padding(.vertical, Spacing.md)
-                .background(.ultraThinMaterial)
+                // P2-9: iPad 竖屏(compact)下，浮动按钮从全宽改成居中 maxWidth: 600
+                // （跟 regularLayout 一致）。iPhone 保持全宽。
+                let isWideCompact = ScreenMetrics.shared.width >= 600
+                if isWideCompact {
+                    HStack {
+                        Spacer(minLength: 0)
+                        GenerateActionButton(
+                            isGenerating: session.isGenerating,
+                            onGenerate: { handleGenerate() }
+                        )
+                        .frame(maxWidth: 600)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, Adaptive.horizontalPageMargin)
+                } else {
+                    GenerateActionButton(
+                        isGenerating: session.isGenerating,
+                        onGenerate: { handleGenerate() }
+                    )
+                    .padding(.horizontal, Adaptive.horizontalPageMargin)
+                }
             }
+            .padding(.vertical, Spacing.md)
+            .background(.ultraThinMaterial)
             .padding(.bottom, Adaptive.floatingButtonBottomPadding)
         }
         .background(Color.bg.ignoresSafeArea())
         .overlay {
-            ThinkingOverlay(isActive: isGenerating, onCancel: {
-                cancelGeneration()
-            })
+            ThinkingOverlay(
+                isActive: session.isGenerating,
+                onCancel: { session.cancel() },
+                progress: session.isGenerating
+                    ? min(Double(session.receivedChars) / Double(max(session.targetChars, 1)), 1.0)
+                    : 0,
+                stage: session.currentStage,
+                receivedChars: session.receivedChars,
+                targetChars: session.targetChars
+            )
         }
     }
 
@@ -184,7 +235,7 @@ struct GenerateView: View {
                 HStack {
                     Spacer()
                     GenerateActionButton(
-                        isGenerating: $isGenerating,
+                        isGenerating: session.isGenerating,
                         onGenerate: { handleGenerate() }
                     )
                     .frame(maxWidth: 600)
@@ -199,16 +250,24 @@ struct GenerateView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color.bg.ignoresSafeArea())
         .overlay {
-            ThinkingOverlay(isActive: isGenerating, onCancel: {
-                cancelGeneration()
-            })
+            ThinkingOverlay(
+                isActive: session.isGenerating,
+                onCancel: { session.cancel() },
+                progress: session.isGenerating
+                    ? min(Double(session.receivedChars) / Double(max(session.targetChars, 1)), 1.0)
+                    : 0,
+                stage: session.currentStage,
+                receivedChars: session.receivedChars,
+                targetChars: session.targetChars
+            )
         }
     }
 
     // MARK: - Body
 
     private var generationFormBody: some View {
-        Group {
+        @Bindable var bindableSession = session
+        return Group {
             if sizeClass == .regular {
                 regularLayout
             } else {
@@ -221,46 +280,72 @@ struct GenerateView: View {
         #endif
         .onAppear {
             Task { await fetchTrendingKeywords() }
-        }
-        .onChange(of: coachMarkManager.isActive) { _, isActive in
-            if !isActive && !hasSeenCoachMarksGenerate
-                && coachMarkManager.steps.map(\.id) == CoachMarkStep.generateSteps.map(\.id) {
-                hasSeenCoachMarksGenerate = true
+            // 首次启动引导：currentStep 从 -1 → 0
+            // 延迟 1.0s 等 layout 就绪，否则 popover 位置算不准
+            if currentStep == -1 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    currentStep = 0
+                    showOnboardStep1 = true
+                }
             }
         }
-        .alert("生成失败", isPresented: $showGenerateError) {
-            Button("好的", role: .cancel) {}
-        } message: {
-            Text(generateErrorMessage ?? "未知错误")
+        .onChange(of: currentStep) { _, new in
+            // currentStep 推进 → 触发下一个 popover
+            switch new {
+            case 1: showOnboardStep2 = true
+            case 2: showOnboardStep3 = true
+            case 3: showOnboardStep4 = true
+            case 4: showOnboardStep5 = true   // 生成按钮的 popover（在 GenerateActionButton 里挂）
+            default: break
+            }
         }
-        .onChange(of: isGenerating) { _, newValue in
+        // 错误卡片（替代之前的简单 alert）
+        // 跟图片/视频的 generationErrorCard 风格一致：原因 + 建议 + 重试/复制按钮
+        // 包在 Group 里避免外层 modifier chain 的类型推断问题
+        Group {
+            if let error = session.errorMessage, session.showError {
+                generationErrorCard(
+                    kind: "文案",
+                    rawError: error,
+                    provider: LLMConfigStore.config(for: .text).provider.rawValue,
+                    onRetry: { handleGenerate() }
+                )
+                .padding(.horizontal, Adaptive.horizontalPageMargin)
+                .padding(.top, Spacing.md)
+            }
+        }
+        .onChange(of: session.isGenerating) { _, newValue in
             DebugLog.shared.log(.info, .llm, "isGenerating changed", details: "value=\(newValue)")
         }
-        .sheet(isPresented: $showInspirationPicker) {
+        .sheet(isPresented: $bindableSession.showInspirationPicker) {
             InspirationPickerSheet(
-                filterType: inspirationPickerType,
+                filterType: session.inspirationPickerType,
                 onSelect: { content in
-                    if inspirationPickerType == .keyword {
-                        if keyword.isEmpty {
-                            keyword = content
-                        } else if !keyword.contains(content) {
-                            keyword += " " + content
+                    if session.inspirationPickerType == .keyword {
+                        if session.keyword.isEmpty {
+                            session.keyword = content
+                        } else if !session.keyword.contains(content) {
+                            session.keyword += " " + content
                         }
+                        // 也记入 Set — 跟点 LLM chip 一致：刷新时如果 LLM 这次也搜到
+                        // 同样的词，会自动显示选中
+                        session.selectedTrendingChips.insert(content)
                     } else {
-                        if hintText.isEmpty {
-                            hintText = content
-                        } else if !hintText.contains(content) {
-                            hintText += " " + content
+                        if session.hintText.isEmpty {
+                            session.hintText = content
+                        } else if !session.hintText.contains(content) {
+                            session.hintText += " " + content
                         }
+                        session.selectedHintChips.insert(content)
                     }
-                    showInspirationPicker = false
+                    session.showInspirationPicker = false
                 }
             )
         }
-        .onChange(of: refreshHintsToken) { _, _ in
+        .onChange(of: session.refreshHintsToken) { _, _ in
             Task { await fetchHintChipsFromLLM() }
         }
-        .onChange(of: trendingKeywordsToken) { _, _ in
+        .onChange(of: session.trendingKeywordsToken) { _, _ in
             Task { await fetchTrendingKeywords() }
         }
     }
@@ -268,158 +353,189 @@ struct GenerateView: View {
     // MARK: - Helpers
 
     private func fetchTrendingKeywords() async {
-        guard !isLoadingTrending else { return }
-        isLoadingTrending = true
-        defer { isLoadingTrending = false }
+        guard !session.isLoadingTrending else { return }
+        session.isLoadingTrending = true
+        defer { session.isLoadingTrending = false }
 
+        // helper 内部已处理 LLM 失败 fallback，永远返回非空数组
         let keywords = await GenerationHelpers.fetchKeywordsFromLLM(
-            product: selectedProduct,
-            keyword: keyword
+            product: session.selectedProduct,
+            keyword: session.keyword
         )
 
         await MainActor.run {
-            if let llmKeywords = keywords {
-                trendingKeywords = llmKeywords
-            } else {
-                trendingKeywords = [
-                    "早八通勤穿搭", "氛围感妆容", "平价替代",
-                    "沉浸式回家", "独居vlog", "减脂餐",
-                    "职场干货", "好物合集", "换季护肤",
-                    "旅行攻略", "咖啡日记", "穿搭灵感"
-                ]
-            }
+            // 已选中的 LLM chip 永远保留在列表最前（即使 LLM 这次没搜到），
+            // 这样用户刷新后还能再点这些 chip 取消选中 — isSelected 由 Set 追踪自动为 true
+            // 用户手输入的 token **不**进 chip 列表（避免"被判定为 LLM 搜出来的"）
+            let pinned = Array(session.selectedTrendingChips)
+            let newOnes = keywords.filter { kw in !session.selectedTrendingChips.contains(kw) }
+            session.trendingKeywords = pinned + newOnes
         }
     }
 
     private func fetchHintChipsFromLLM() async {
-        guard !isLoadingHints else { return }
-        isLoadingHints = true
-        defer { isLoadingHints = false }
+        guard !session.isLoadingHints else { return }
+        session.isLoadingHints = true
+        defer { session.isLoadingHints = false }
 
         await GenerationHelpers.fetchHintChipsFromLLM(
-            product: selectedProduct,
-            keyword: keyword
+            product: session.selectedProduct,
+            keyword: session.keyword
         ) { chips in
             await MainActor.run {
-                hintChips = Array(chips.prefix(10))
+                // 同上：已选中的 LLM chip 保留在列表最前
+                let pinned = Array(session.selectedHintChips)
+                let newOnes = chips.filter { c in !session.selectedHintChips.contains(c) }
+                session.hintChips = pinned + newOnes
             }
         }
     }
 
     // MARK: - Generation logic
+    //
+    // 业务入口：构造请求 → 委托给 GenerationSession.startGeneration
+    // 真正的 task 持有 / 进度更新 / 错误处理都在 session 里，跨 view 生命周期
 
     private func handleGenerate() {
-        isGenerating = true
-        let hint = hintText.trimmingCharacters(in: .whitespaces).isEmpty ? nil : hintText.trimmingCharacters(in: .whitespaces)
+        let hint = session.hintText.trimmingCharacters(in: .whitespaces).isEmpty ? nil : session.hintText.trimmingCharacters(in: .whitespaces)
         let request = GenerateRequest(
             recordId: UUID(),
-            keyword: keyword,
-            adType: selectedAdType,
+            keyword: session.keyword,
+            adType: session.selectedAdType,
             keywordHint: hint,
-            product: selectedProduct,
+            product: session.selectedProduct,
             images: [],
             styleImages: []
         )
 
-        let gen = generator
-        let usingReal = (gen is LLMTextGenerator)
-        DebugLog.shared.info(
-            .llm,
-            "handleGenerate triggered",
-            details: """
-            generator=\(usingReal ? "LLMTextGenerator" : "MockGenerator")
-            adType=\(selectedAdType.displayName)
-            keyword=\(keyword)
-            hint=\(hint ?? "(none)")
-            product=\(selectedProduct?.name ?? "(none)")
-            """
+        session.startGeneration(
+            request: request,
+            generator: generator,
+            modelContext: modelContext
         )
-        let capturedKeyword = keyword
-        let capturedAdType = selectedAdType
-        let capturedHint = hint
-        let capturedModelContext = modelContext
-        let capturedProductId = selectedProduct?.id
+    }
+}
 
-        generateTask = Task {
-            do {
-                let response = try await gen.generate(request)
-                try Task.checkCancellation()
+// MARK: - 错误卡片（文案生成专用，复用 ResultView 风格）
+//
+// 跟 ResultView.generationErrorCard 风格一致：原因 + 建议 + 重试/复制按钮。
+// 暂不复用 ResultView 私有函数（避免跨文件 private 依赖）—— 后续可提取到
+// DesignSystem/GenerationErrorCard.swift 共享。
+private func generationErrorCard(
+    kind: String,
+    rawError: String,
+    provider: String,
+    onRetry: @escaping () -> Void
+) -> some View {
+    let (title, suggestion) = diagnoseGenerationError(rawError)
+    return VStack(alignment: .leading, spacing: Spacing.md) {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.danger)
+                .font(.system(size: 16, weight: .semibold))
+            Text("\(kind)生成失败")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.ink)
+            Spacer()
+        }
 
-                let record = GenerationRecord(
-                    adType: capturedAdType.rawValue,
-                    inputKeyword: capturedKeyword,
-                    keywordHint: capturedHint,
-                    productId: capturedProductId,
-                    noteTitle: response.noteTitle,
-                    content: response.content,
-                    tags: response.tags,
-                    imageSuggestion: response.imageSuggestion,
-                    imagePrompt: response.imagePrompt,
-                    videoPrompt: response.videoPrompt,
-                    easterEggText: response.easterEgg,
-                    hotScore: response.hotScore,
-                    suggestion: response.suggestion
-                )
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Text("原因")
+                .font(Typography.caption.weight(.semibold))
+                .foregroundStyle(Color.ink3)
+            Text(title)
+                .font(Typography.bodySmall)
+                .foregroundStyle(Color.ink2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
 
-                finishGeneration(
-                    response: response,
-                    record: record,
-                    capturedModelContext: capturedModelContext
-                )
-            } catch is CancellationError {
-                DebugLog.shared.log(.warn, .llm, "generate cancelled by user")
-                resetGenerationState()
-            } catch let urlErr as URLError where urlErr.code == .cancelled {
-                DebugLog.shared.log(.warn, .llm, "generate cancelled (URLSession)")
-                resetGenerationState()
-            } catch {
-                let raw = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                DebugLog.shared.log(.error, .llm, "generate pipeline failed", details: raw)
-                let friendly = GenerationHelpers.friendlyErrorMessage(raw: raw, error: error)
-                showGenerationError(friendly)
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Text("建议")
+                .font(Typography.caption.weight(.semibold))
+                .foregroundStyle(Color.ink3)
+            Text(suggestion)
+                .font(Typography.bodySmall)
+                .foregroundStyle(Color.ink2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack {
+                Text("技术细节（\(provider)）")
+                    .font(Typography.caption.weight(.semibold))
+                    .foregroundStyle(Color.ink4)
+                Spacer()
+                Button {
+                    #if os(iOS)
+                    UIPasteboard.general.string = rawError
+                    #elseif os(macOS)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(rawError, forType: .string)
+                    #endif
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "doc.on.doc").font(Typography.caption)
+                        Text("复制").font(Typography.caption)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.ink3)
             }
+            Text(rawError)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(Color.ink3)
+                .lineLimit(6)
+                .padding(Spacing.sm)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.sm))
         }
-    }
 
-    @MainActor
-    private func finishGeneration(
-        response: GenerateResponse,
-        record: GenerationRecord,
-        capturedModelContext: ModelContext
-    ) {
-        capturedModelContext.insert(record)
-        do {
-            try capturedModelContext.save()
-        } catch {
-            DebugLog.shared.log(.error, .llm, "modelContext.save() failed", details: error.localizedDescription)
+        Button {
+            onRetry()
+        } label: {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                Text("重新生成\(kind)")
+            }
+            .frame(maxWidth: .infinity)
         }
-        generateTask = nil
-        isGenerating = false
-        generatedRecord = record
-        DebugLog.shared.log(
-            .info, .llm,
-            "generation complete, navigating to result",
-            details: "title=\(response.noteTitle) id=\(record.id)"
-        )
+        .buttonStyle(GhostButtonStyle(tint: .brand))
     }
+    .padding(Spacing.md)
+    .background(Color.errorBg.opacity(0.6), in: RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+    .overlay(
+        RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+            .stroke(Color.danger.opacity(0.25), lineWidth: 1)
+    )
+}
 
-    @MainActor
-    private func resetGenerationState() {
-        isGenerating = false
-        generateTask = nil
+/// 文案生成错误诊断（关键词匹配，简化版 ——
+/// 跟 ResultView.diagnoseVideoError 一样，逻辑通用不区分 kind）。
+private func diagnoseGenerationError(_ raw: String) -> (title: String, suggestion: String) {
+    let lower = raw.lowercased()
+    if raw.contains("API Key") || raw.contains("URL / Key / Model") || raw.contains("401") || raw.contains("403") || raw.contains("未授权") {
+        return ("未授权：API Key / URL / Model 三件套未配齐或无效",
+                "到「我的 → 大模型配置 → 文案生成」检查 URL / Key / Model 是否正确填写，或在服务商控制台确认 Key 有效。")
     }
-
-    @MainActor
-    private func showGenerationError(_ message: String) {
-        isGenerating = false
-        generateTask = nil
-        generateErrorMessage = message
-        showGenerateError = true
+    if raw.contains("超时") || raw.contains("timed out") || lower.contains("timeout") || raw.contains("-1001") {
+        return ("请求超时",
+                "文案生成偶尔会比较慢。如果多次超时：① 检查网络稳定性 ② 简化关键词和风格提示 ③ 切到更轻量的模型。")
     }
-
-    private func cancelGeneration() {
-        generateTask?.cancel()
-        generateTask = nil
-        isGenerating = false
+    if raw.contains("-1005") || raw.contains("网络连接已中断") || raw.contains("network connection lost") {
+        return ("网络连接已中断",
+                "请求在传输途中被关闭（可能切换了 WiFi、VPN 断开、或者本地网络瞬时抖动）。\n\n建议：① 确认当前网络稳定 ② 重新点击「重新生成文案」重试。")
     }
+    if raw.contains("-1009") || raw.contains("无网络") {
+        return ("无网络连接",
+                "设备当前连不上互联网。检查 WiFi / 蜂窝数据是否正常，或等待网络恢复后重试。")
+    }
+    if raw.contains("JSON") || raw.contains("未返回合法") {
+        return ("模型返回了非预期的格式",
+                "LLM 返回的不是合法 JSON（文案标题/正文/标签格式）。建议：① 简化关键词 ② 换一个模型 ③ 重试。")
+    }
+    if raw.contains("rate") && (raw.contains("limit") || raw.contains("429")) {
+        return ("调用过于频繁（限流）",
+                "服务商返回 429。等 30 秒再重试，或切换到备用服务商。")
+    }
+    return ("生成未成功", "请重试。如果反复失败，简化输入或切换模型，或到设置页复制错误反馈给我们。")
 }

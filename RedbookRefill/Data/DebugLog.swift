@@ -36,7 +36,8 @@ enum DebugLogLevel: String, CaseIterable {
 
 enum DebugLogCategory: String, CaseIterable {
     case llm        // LLMTextGenerator
-    case jimeng     // JimengService / Ark / 火山
+    case agnes      // AgnesService (图片 / 视频生成)
+    case volc      // VolcengineVideoService (豆包 Seedance 视频)
     case tester     // LLMTester
     case auth       // AuthStore
     case data       // SwiftData / Repository
@@ -46,7 +47,8 @@ enum DebugLogCategory: String, CaseIterable {
     var label: String {
         switch self {
         case .llm:    return "LLM"
-        case .jimeng: return "JIMENG"
+        case .agnes:  return "AGNES"
+        case .volc:   return "VOLC"
         case .tester: return "TESTER"
         case .auth:   return "AUTH"
         case .data:   return "DATA"

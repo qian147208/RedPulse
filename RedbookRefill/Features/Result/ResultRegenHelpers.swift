@@ -58,7 +58,7 @@ struct ResultSaveHelper {
             return
         }
         do {
-            let data = try await Data(contentsOf: imageURL)
+            let data = try Data(contentsOf: imageURL)
             let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
             let fileName = URL(string: url)?.lastPathComponent ?? "\(UUID().uuidString).jpg"
             let destURL = cacheDir.appendingPathComponent(fileName)
@@ -78,14 +78,15 @@ struct ResultSaveHelper {
             return
         }
         do {
-            let data = try await Data(contentsOf: videoURL)
+            let data = try Data(contentsOf: videoURL)
             let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
             let fileName = URL(string: url)?.lastPathComponent ?? "\(UUID().uuidString).mp4"
             let destURL = cacheDir.appendingPathComponent(fileName)
             try data.write(to: destURL)
             #if canImport(UIKit) && !os(macOS)
-            let assets = PHAssetCreationRequest.forAsset()
-            assets.addResource(with: .video, data: data, options: nil)
+            if destURL.isFileURL {
+                UISaveVideoAtPathToSavedPhotosAlbum(destURL.path, nil, nil, nil)
+            }
             #endif
             onPopToast("视频已保存")
         } catch {

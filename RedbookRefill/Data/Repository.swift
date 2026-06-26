@@ -53,7 +53,7 @@ final class Repository {
             try modelContext.save()
             return true
         } catch {
-            log.error("Failed to delete product \\(p.name): \\(error.localizedDescription)")
+            log.error("Failed to delete product \(p.name): \(error.localizedDescription)")
             return false
         }
     }
@@ -89,7 +89,7 @@ final class Repository {
             try modelContext.save()
             return true
         } catch {
-            log.error("Failed to delete record: \\(error.localizedDescription)")
+            log.error("Failed to delete record: \(error.localizedDescription)")
             return false
         }
     }
@@ -104,7 +104,7 @@ final class Repository {
             try modelContext.save()
             return true
         } catch {
-            log.error("Failed to clear all records: \\(error.localizedDescription)")
+            log.error("Failed to clear all records: \(error.localizedDescription)")
             return false
         }
     }
@@ -119,7 +119,7 @@ final class Repository {
             log.info("Feedback saved")
             return true
         } catch {
-            log.error("Failed to save feedback: \\(error.localizedDescription)")
+            log.error("Failed to save feedback: \(error.localizedDescription)")
             return false
         }
     }
@@ -155,7 +155,7 @@ final class Repository {
             try modelContext.save()
             return true
         } catch {
-            log.error("Failed to delete inspiration item \\(item.title): \\(error.localizedDescription)")
+            log.error("Failed to delete inspiration item \(item.title): \(error.localizedDescription)")
             return false
         }
     }

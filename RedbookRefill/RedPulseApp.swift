@@ -13,12 +13,13 @@ import SwiftData
 
 struct AppCommands: Commands {
     @Binding var selectedTab: TabItem
-    var showSettings: () -> Void
     var showAIWindow: () -> Void
 
     var body: some Commands {
         CommandGroup(after: .appSettings) {
-            Button("设置…") { showSettings() }
+            // ⌘+, 快捷键：直接切到「我的」tab（设置在 tab 内的 NavigationStack 里）
+            // — 完全在主窗口内，不再弹 sheet 跑出主窗口
+            Button("设置…") { selectedTab = .profile }
                 .keyboardShortcut(",", modifiers: .command)
         }
 
@@ -66,13 +67,29 @@ struct AppCommands: Commands {
 
 @main
 struct RedPulseApp: App {
-    @State private var coachMarkManager = CoachMarkManager()
+    /// 跨 view 生命周期持有"生成任务"状态 — 切到别的 tab 后 task 不丢失
+    @State private var generationSession = GenerationSession()
+    /// 跨 view 持有"重新生成"任务（文本/图/视频），跟顶层 mainContext 绑定
+    @State private var regenSession: RegenSession
     @AppStorage("appearance_mode") private var appearanceMode: AppearanceMode = .system
     @AppStorage("root.selected_tab") private var selectedTabRaw: Int = 0
-    @State private var showSettings: Bool = false
+
+    /// P1:启动状态机 — 严格按顺序:法律协议 → 功能引导 → 主界面
+    /// 任一阶段不接受,后续阶段不展示。
+    @State private var launchStage: LaunchStage = {
+        if !LegalConsent.hasAcceptedCurrentVersion {
+            return .legalConsent
+        }
+        if !UserDefaults.standard.bool(forKey: "has_seen_onboarding") {
+            return .onboarding
+        }
+        return .mainContent
+    }()
 
     // 显式构建 ModelContainer，便于打 log 排查 schema/store 问题。
-    private let modelContainer: ModelContainer = {
+    // 这里用 file-scope 的 static lazy，让 init 和 body 都拿到**同一份**实例 ——
+    // 否则 init 里 makeContainer 构造的 mainContext 跟 body 里 .modelContainer 注入的不是一个
+    private static let modelContainer: ModelContainer = {
         let schema = Schema([
             Product.self,
             GenerationRecord.self,
@@ -94,36 +111,59 @@ struct RedPulseApp: App {
         }
     }()
 
+    init() {
+        // 用同一份 static modelContainer 构造 regenSession，mainContext 跨 view 持久
+        _regenSession = State(initialValue: RegenSession(mainContext: Self.modelContainer.mainContext))
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView(selectedTabRaw: $selectedTabRaw)
-                .environment(coachMarkManager)
-                .tint(.brand)
-                .preferredColorScheme(appearanceMode.colorScheme)
-                .trackScreenMetrics()
-                .frame(minWidth: 900, maxWidth: 1400, minHeight: 600, maxHeight: 900)
-                .sheet(isPresented: $showSettings) {
-                    NavigationStack {
-                        SettingsView()
-                            .toolbar {
-                                ToolbarItem(placement: .cancellationAction) {
-                                    Button("完成") { showSettings = false }
-                                }
-                            }
+            ZStack {
+                ContentView(selectedTabRaw: $selectedTabRaw)
+                    .environment(generationSession)
+                    .environment(regenSession)
+                    .tint(.brand)
+                    .preferredColorScheme(appearanceMode.colorScheme)
+                    .trackScreenMetrics()
+                    .frame(minWidth: 900, maxWidth: 1400, minHeight: 600, maxHeight: 900)
+                    .task {
+                        // 启动时一次性迁移：把 SwiftData 里历史远程 URL 下到本地
+                        await LocalAssetMigrator.runIfNeeded(modelContext: Self.modelContainer.mainContext)
                     }
-                    #if os(macOS)
-                    .frame(minWidth: 640, minHeight: 520)
-                    #endif
+                    // 只有到了 mainContent 阶段,主界面才可交互
+                    .allowsHitTesting(launchStage == .mainContent)
+                    .opacity(launchStage == .mainContent ? 1 : 0)
+
+                // P1:阶段 1 — 法律协议(首次启动强制)
+                if launchStage == .legalConsent {
+                    LegalConsentView {
+                        // 同意后进入下一阶段:功能引导
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            launchStage = .onboarding
+                        }
+                    }
+                    .transition(.opacity)
                 }
+
+                // P1:阶段 2 — 功能引导(同意协议后、首次启动时弹一次)
+                if launchStage == .onboarding {
+                    OnboardingView {
+                        // 引导完成后进入主界面
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            launchStage = .mainContent
+                        }
+                    }
+                    .transition(.opacity)
+                }
+            }
         }
-        .modelContainer(modelContainer)
+        .modelContainer(Self.modelContainer)
         .commands {
             AppCommands(
                 selectedTab: Binding(
                     get: { TabItem(rawValue: selectedTabRaw) ?? .generate },
                     set: { selectedTabRaw = $0.rawValue }
                 ),
-                showSettings: { showSettings = true },
                 showAIWindow: {
                     NotificationCenter.default.post(name: .openAIAssistant, object: nil)
                 }
@@ -137,7 +177,14 @@ struct RedPulseApp: App {
                 .preferredColorScheme(appearanceMode.colorScheme)
         }
         .defaultSize(width: 1100, height: 720)
-        .modelContainer(modelContainer)
+        .modelContainer(Self.modelContainer)
         #endif
     }
+}
+
+/// P1:启动状态机
+private enum LaunchStage {
+    case legalConsent   // 必须先同意法律协议
+    case onboarding     // 协议同意后才进入引导(首次启动时弹一次)
+    case mainContent    // 主界面
 }

@@ -57,46 +57,18 @@ struct RootTabView: View {
         nonmutating set { selectedTabRaw = newValue.rawValue }
     }
     @State private var sidebarSelection: TabItem? = .generate
-    @State private var showOnboardingSheet: Bool = false
-    @State private var coachMarkScheduled = false
-    @AppStorage("has_seen_onboarding") private var hasSeenOnboarding: Bool = false
-    @Environment(CoachMarkManager.self) private var coachMarkManager
+    /// iPad / Mac sidebar 显隐。默认收起（`.detailOnly`）→ 内容区占满整个窗口，
+    /// toolbar 侧边栏按钮可手动展开，NavigationSplitView 自动处理动画与转场。
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    /// 用户上次主动设置的可见性（用于 onAppear 强制覆盖 NavigationSplitView 自动恢复）
+    @AppStorage("split_column_visibility") private var savedVisibilityRaw: String = "detailOnly"
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
 
     var body: some View {
         rootLayout
-            // .overlay {
-                // ChatLauncher()
-                    // .padding(.bottom, chatLauncherBottomPadding)
-            // }
-            // .overlay {
-                // CoachMarkOverlay()
-            // }
-            .onAppear {
-                if !hasSeenOnboarding {
-                    showOnboardingSheet = true
-                }
-            }
-            .onChange(of: showOnboardingSheet) { _, showing in
-                if !showing {
-                    scheduleCoachMark()
-                }
-            }
-            .onAppear {
-                if hasSeenOnboarding {
-                    scheduleCoachMark()
-                }
-            }
-            .sheet(isPresented: $showOnboardingSheet) {
-                OnboardingView()
-            }
-    }
-
-    private func scheduleCoachMark() {
-        guard !coachMarkManager.hasShownGenerate else { return }
-        coachMarkScheduled = true
+        // TipKit 接管引导 — 各 view 自己挂 .popoverTip(...)，无需在 RootTabView 层挂 overlay
     }
 
     /// Top-right padding for the quality toggle — clears window traffic lights on macOS
@@ -145,7 +117,7 @@ struct RootTabView: View {
     // MARK: - Sidebar Layout (iPad / Mac)
 
     private var sidebarLayout: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $sidebarSelection) {
                 ForEach(TabItem.allCases) { tab in
                     Label(tab.title, systemImage: tab.icon)
@@ -154,20 +126,34 @@ struct RootTabView: View {
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
         } detail: {
             switch sidebarSelection ?? .generate {
             case .generate:
                 NavigationStack {
                     GenerateView()
+                        // 显式占位 principal，覆盖系统默认渲染
+                        // —— SwiftUI 在 macOS 上会把 sidebar toggle 渲染到
+                        // navigationTitle 位置。如果 navigationTitle 是空字符串，
+                        // 它会渲染一个空 principal + 隐藏的 sidebar toggle。
+                        // 用一个 EmptyView 显式占位告诉 SwiftUI："这块我自己管"。
+                        .toolbar {
+                            ToolbarItem(placement: .principal) { EmptyView() }
+                        }
                 }
             case .products:
                 NavigationStack {
                     ProductListView()
+                        .toolbar {
+                            ToolbarItem(placement: .principal) { EmptyView() }
+                        }
                 }
             case .history:
                 NavigationStack {
                     HistoryView()
+                        .toolbar {
+                            ToolbarItem(placement: .principal) { EmptyView() }
+                        }
                 }
             case .profile:
                 NavigationStack {
@@ -179,6 +165,9 @@ struct RootTabView: View {
                         #if os(iOS)
                         .navigationBarTitleDisplayMode(.inline)
                         #endif
+                        .toolbar {
+                            ToolbarItem(placement: .principal) { EmptyView() }
+                        }
                 }
             }
         }
@@ -188,13 +177,32 @@ struct RootTabView: View {
                 selectedTabRaw = newSelection.rawValue
             }
         }
+        // P0-3: iPad 转屏 / Stage Manager / 多任务窗口尺寸变化时，size class 会从 .compact 切到 .regular，
+        // 这时 sidebarLayout 重新挂载，但 .task 只在首次 onAppear 触发一次，sidebarSelection 不会自动
+        // 跟 AppStorage 同步 → 用户感觉"tab 跳了"。补一条 selectedTabRaw → sidebarSelection 的反向同步。
+        .onChange(of: selectedTabRaw) { _, newRaw in
+            if let tab = TabItem(rawValue: newRaw), sidebarSelection != tab {
+                sidebarSelection = tab
+            }
+        }
+        .onChange(of: columnVisibility) { _, new in
+            savedVisibilityRaw = (new == .detailOnly) ? "detailOnly" : "all"
+        }
         .task {
             // 初始化时同步 AppStorage → sidebarSelection
             if let tab = TabItem(rawValue: selectedTabRaw) {
                 sidebarSelection = tab
             }
+            // 强制应用用户偏好（首次启动也走 .detailOnly）
+            columnVisibility = (savedVisibilityRaw == "all") ? .all : .detailOnly
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // P0-7 (修正版)：用 SwiftUI 在 macOS 上自动渲染的 sidebar toggle 按钮
+        // (会出现在 toolbar 中间、navigationTitle 左侧的"红框"位置)。
+        // 之前我手动加了一个 .primaryAction 按钮，加上系统自动的 → 同时显示 2 个。
+        // 现在只保留系统自动的（你红框框住的那个），删掉手动加的。
+        // AppStorage 持久化保留（onChange(of: columnVisibility) + .task 同步）。
+        // 系统自动按钮的操作直接改 columnVisibility binding，触发持久化 onChange。
     }
 
 

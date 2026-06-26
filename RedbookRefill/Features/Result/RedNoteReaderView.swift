@@ -15,7 +15,8 @@ import SwiftData
 private enum ReaderTab: String, CaseIterable {
     case nav = "内容导航"
     case preview = "内容预览"
-    case diagnose = "AI诊断"
+    // AI 诊断入口已从 tab 栏移除（之前 tab 栏第三个 `AI诊断` + 评论区大按钮 `让 AI 帮我点评` 重复），
+    // 现在只在评论区右上保留一个小按钮 `AI 点评` 入口。
 }
 
 struct RedNoteReaderView: View {
@@ -28,6 +29,8 @@ struct RedNoteReaderView: View {
     let videoUrl: String?
     /// Toggle between image preview and video preview
     @State private var showVideo: Bool = false
+    @State private var videoPlayer: AVPlayer?
+    @State private var loadedVideoURL: URL?
     /// Current image index for multi-image browsing
     @State private var currentImageIndex: Int = 0
     let adType: String
@@ -63,7 +66,115 @@ struct RedNoteReaderView: View {
     private var displayImageUrls: [String] { activeRecord?.imageUrls ?? imageUrls }
     private var displayAdType: String { activeRecord?.adType ?? adType }
 
+    // P0-9: 视频是否可播放。URL.safeURL 对 file:///...mp4 在 macOS 上偶尔返回 nil,
+    // 这里只看 videoUrl 字符串非空 + 看起来像个 URL(以 http:// / https:// / file:// 开头)。
+    private var hasPlayableVideo: Bool {
+        guard let v = videoUrl, !v.isEmpty else { return false }
+        return v.hasPrefix("http://") || v.hasPrefix("https://") || v.hasPrefix("file://")
+    }
+
     private let pw: CGFloat = 375; private let ph: CGFloat = 812; private let pr: CGFloat = 48
+
+    /// P0-9:根据 videoUrl 生成稳定的 id,供 VideoPlayer .task(id:) 用,
+    /// 保证 player 只在 url 真正变化时重建。
+    private func videoPlayerID(_ url: URL) -> String { url.absoluteString }
+
+    /// P0-9:稳定获取当前 videoUrl 对应的 AVPlayer
+    /// —— 如果 url 没变,返回已有的 player;否则创建新的。
+    /// 关键:不在 body 里调用 player = AVPlayer(url:),改用 .task(id:) 管理生命周期。
+    private func ensureVideoPlayer(url: URL) -> AVPlayer {
+        if let p = videoPlayer, loadedVideoURL == url {
+            return p
+        }
+        // 这里返回的 player 是给当次渲染用的;真正持久的 player 由 .task(id:) 管理。
+        // 如果有旧的 player 但 url 不同,先释放旧的(替换 item 即可)。
+        if let existing = videoPlayer {
+            existing.replaceCurrentItem(with: AVPlayerItem(url: url))
+            loadedVideoURL = url
+            return existing
+        }
+        // 第一次:创建一个临时 player。.task(id:) 会随后接管并把这个 player 存到 @State。
+        return AVPlayer(url: url)
+    }
+
+    /// P0-9:在 VideoPlayer 真正 mount 到视图时,把 player 持久化到 @State,
+    /// 并在 url 变化时替换 player 的 item(而不是重新创建 player)。
+    /// —— 这样整个生命周期里只有一个 AVPlayer 实例,不会触发 AttributeGraph cycle。
+    private func mountVideoPlayer(url: URL) {
+        if let existing = videoPlayer {
+            // player 已存在,只替换 item
+            if existing.currentItem == nil || loadedVideoURL != url {
+                existing.replaceCurrentItem(with: AVPlayerItem(url: url))
+                loadedVideoURL = url
+            }
+            return
+        }
+        let new = AVPlayer(url: url)
+        videoPlayer = new
+        loadedVideoURL = url
+    }
+
+    /// P0-9: 单段 toggle segment(图片 / 视频),用于 imageArea 顶部切换栏
+    /// — 用 contentShape + Rectangle hit area,避免 macOS ScrollView 嵌套时
+    /// 按钮 hit testing 被吞;不加 .buttonStyle(.plain),让系统默认 hit testing 生效。
+    private func simpleToggleBtn(title: String, icon: String, isActive: Bool, tap: @escaping () -> Void) -> some View {
+        Button {
+            #if DEBUG
+            print("[imageArea] toggle tap: \(title), current showVideo=\(showVideo)")
+            #endif
+            withAnimation(.easeInOut(duration: 0.18)) {
+                tap()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: isActive ? .semibold : .regular))
+                Text(title)
+                    .font(.system(size: 14, weight: isActive ? .semibold : .medium))
+            }
+            .foregroundStyle(isActive ? .white : Color.ink2)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 9)
+            .frame(minWidth: 90)
+            .background(
+                isActive ? Color.brand : Color.ink4.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(isActive ? Color.brand : Color.border, lineWidth: 0.5)
+            )
+            .contentShape(Rectangle())
+        }
+        // 不设 .buttonStyle(.plain),用系统默认 — 嵌套 ScrollView 里 hit testing 更可靠
+    }
+
+    /// 宽松 URL 解析,优先尝试标准 URL,fallback 到 file:// 路径
+    /// —— 修 macOS / iOS Simulator 上 URL.safeURL 对 file:/// 路径偶发解析失败
+    nonisolated static func parseLooseURL(_ s: String) -> URL? {
+        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        // 1. 标准 URL(string:) 解析(优先)
+        if let url = URL(string: trimmed), url.scheme != nil { return url }
+        // 2. file:// 路径 — 显式构造,iOS Simulator 对带空格的路径偶发失败时用
+        if trimmed.hasPrefix("file://") {
+            // 去掉前缀后得到 /Users/mac/... 这种 absolute path
+            let path = String(trimmed.dropFirst("file://".count))
+            // iOS Simulator 上,有时容器路径里带空格,需 percent-decode
+            if let decoded = path.removingPercentEncoding {
+                return URL(fileURLWithPath: decoded)
+            }
+            return URL(fileURLWithPath: path)
+        }
+        // 3. 纯本地路径(没 file:// 前缀)
+        if trimmed.hasPrefix("/") {
+            return URL(fileURLWithPath: trimmed)
+        }
+        // 4. 兜底 percent-encode + 重新解析
+        if let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let url = URL(string: encoded), url.scheme != nil { return url }
+        return nil
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -74,7 +185,6 @@ struct RedNoteReaderView: View {
         }
         .onChange(of: triggerDiagnose) { _, new in
             if new {
-                selectedTab = .preview
                 onStartDiagnose?()
             }
         }
@@ -87,33 +197,20 @@ struct RedNoteReaderView: View {
         HStack(spacing: 0) {
             ForEach(ReaderTab.allCases, id: \.self) { tab in
                 Button {
-                    if tab == .diagnose {
-                        selectedTab = .preview
-                        onStartDiagnose?()
-                    } else { selectedTab = tab }
+                    selectedTab = tab
                 } label: {
-                    HStack(spacing: 4) {
-                        if tab == .diagnose {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 13, weight: .bold))
-                        }
-                        Text(tab.rawValue)
-                            .font(.system(size: 15, weight: isActive(tab) ? .semibold : .regular))
-                    }
-                    .foregroundStyle(tab == .diagnose ? (isActive(tab) ? Color.brand : Color.brand.opacity(0.7)) : (isActive(tab) ? Color.brand : Color.ink3))
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(tab == .diagnose ? (isActive(tab) ? Color.brandSoft : Color.brandSoft.opacity(0.4)) : (isActive(tab) ? Color.brandSoft : Color.clear), in: Capsule())
+                    Text(tab.rawValue)
+                        .font(.system(size: 15, weight: isActive(tab) ? .semibold : .regular))
+                        .foregroundStyle(isActive(tab) ? Color.brand : Color.ink3)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(isActive(tab) ? Color.brandSoft : Color.clear, in: Capsule())
                 }.buttonStyle(.plain)
             }
         }
     }
 
     private func isActive(_ tab: ReaderTab) -> Bool {
-        switch tab {
-        case .nav:      return selectedTab == .nav
-        case .preview:  return selectedTab == .preview
-        case .diagnose: return selectedTab == .preview && triggerDiagnose
-        }
+        return selectedTab == tab
     }
 
     // MARK: - Phone frame
@@ -138,9 +235,8 @@ struct RedNoteReaderView: View {
     @ViewBuilder
     private var phoneScreen: some View {
         switch selectedTab {
-        case .nav:      discoverFeed
-        case .preview:  articlePage
-        case .diagnose: articlePage
+        case .nav:     discoverFeed
+        case .preview: articlePage
         }
     }
 
@@ -239,26 +335,58 @@ struct RedNoteReaderView: View {
 
     private var articlePage: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    userBar
-                    imageArea
-                    interactionBar
-                    titleArea
-                    bodyArea
-                    tagsArea
-                    metaLine
-                    commentDivider
-                    commentSection
+            VStack(spacing: 0) {
+                // P0-9:把 toggle 移出 ScrollView
+                // —— macOS SwiftUI ScrollView + scaleEffect + Button 嵌套时,
+                // Button 的 hit testing 会被 ScrollView 的拖拽手势吞掉。
+                // 移出来后,toggle 在独立的 ZStack 层,hit testing 由系统保证。
+                if hasPlayableVideo, !displayImageUrls.isEmpty {
+                    imageToggleBar
+                }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        userBar
+                        imageArea  // 注意:imageArea 里不再渲染 toggle
+                        interactionBar
+                        titleArea
+                        bodyArea
+                        tagsArea
+                        metaLine
+                        commentDivider
+                        commentSection
+                    }
+                }
+                .onChange(of: triggerDiagnose) { _, new in
+                    if new { withAnimation { proxy.scrollTo("comments", anchor: .top) } }
+                }
+                .onChange(of: activeRecord?.id) { _, _ in
+                    withAnimation { proxy.scrollTo("top", anchor: .top) }
                 }
             }
-            .onChange(of: triggerDiagnose) { _, new in
-                if new { withAnimation { proxy.scrollTo("comments", anchor: .top) } }
-            }
-            .onChange(of: activeRecord?.id) { _, _ in
-                withAnimation { proxy.scrollTo("top", anchor: .top) }
-            }
         }
+    }
+
+    /// P0-9:图片/视频 toggle 切换栏,放在 ScrollView 外面,确保 hit testing 不会被吞
+    private var imageToggleBar: some View {
+        HStack(spacing: 6) {
+            Spacer(minLength: 0)
+            simpleToggleBtn(
+                title: "图片", icon: "photo",
+                isActive: !showVideo,
+                tap: { showVideo = false }
+            )
+            simpleToggleBtn(
+                title: "视频", icon: "play.rectangle.fill",
+                isActive: showVideo,
+                tap: { showVideo = true }
+            )
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        // 给整个 toggle bar 一个 ZStack 背景,避免 ScrollView 内容透出来影响视觉
+        .background(Color.bg)
     }
 
     private var userBar: some View {
@@ -279,35 +407,35 @@ struct RedNoteReaderView: View {
     }
 
     private var imageArea: some View {
-        VStack(spacing: 4) {
-            // Image / Video toggle (only when both exist)
-            if let _ = URL.safeURL(from: videoUrl ?? ""), !displayImageUrls.isEmpty {
-                HStack(spacing: 2) {
-                    Spacer()
-                    Button { showVideo = false } label: {
-                        Text("图片").font(.system(size: 11, weight: showVideo ? .regular : .semibold))
-                            .foregroundStyle(showVideo ? Color.ink3 : Color.brand)
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(showVideo ? Color.clear : Color.brandSoft)
-                            .clipShape(Capsule())
-                    }.buttonStyle(.plain)
-                    Button { showVideo = true } label: {
-                        Text("视频").font(.system(size: 11, weight: showVideo ? .semibold : .regular))
-                            .foregroundStyle(showVideo ? Color.brand : Color.ink3)
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(showVideo ? Color.brandSoft : Color.clear)
-                            .clipShape(Capsule())
-                    }.buttonStyle(.plain)
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 4)
-            }
+        VStack(spacing: 6) {
+            // P0-9:toggle 已移到 imageToggleBar(在 ScrollView 外),这里只渲染内容区
 
             // Content: show video, or the Nth image, or empty state
-            if showVideo, let vid = videoUrl, let url = URL.safeURL(from: vid) {
-                VideoPlayer(player: AVPlayer(url: url))
+            // 修复:URL.safeURL 在 macOS 上对 file:///...mp4 偶尔返回 nil,
+            // 导致 showVideo 切不过去。这里用更宽松的判断:有 videoUrl 字符串就当成可播放。
+            if showVideo, let vid = videoUrl, !vid.isEmpty, let url = Self.parseLooseURL(vid) {
+                // P0-9:用 .task(id:) 管理 AVPlayer 生命周期,避免在 body 里反复创建
+                // 导致 AttributeGraph cycle — cycle 会让 SwiftUI 吞掉点击状态更新。
+                // 整个视频会话期间只创建一次 AVPlayer,url 变化时只 replaceCurrentItem。
+                VideoPlayer(player: ensureVideoPlayer(url: url))
                     .frame(width: pw, height: pw * 450 / 375)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .task(id: videoPlayerID(url)) {
+                        mountVideoPlayer(url: url)
+                        #if DEBUG
+                        print("[imageArea] VideoPlayer task start, url=\(vid)")
+                        let fm = FileManager.default
+                        let exists = fm.fileExists(atPath: url.path)
+                        print("[imageArea] video file exists=\(exists) path=\(url.path)")
+                        if !exists {
+                            print("[imageArea] ⚠️ 视频文件不存在,VideoPlayer 会显示空白")
+                        }
+                        #endif
+                        videoPlayer?.play()
+                    }
+                    .background(
+                        Color.brand.opacity(0.04)
+                    )
             } else if !displayImageUrls.isEmpty, currentImageIndex < displayImageUrls.count,
                       let url = URL.safeURL(from: displayImageUrls[currentImageIndex]) {
                 // Current image with swipe + nav arrows
@@ -462,21 +590,8 @@ struct RedNoteReaderView: View {
                 }
             }
             if liveComments.isEmpty && !isDiagnosing {
-                Button {
-                    onStartDiagnose?()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 12))
-                        Text("让 AI 帮我点评")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .foregroundStyle(Color.brand)
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 16)
-                    .background(Color.brandSoft, in: Capsule())
-                }
-                .buttonStyle(.plain)
+                // P0-8: 删掉评论区上方的大按钮"让 AI 帮我点评"
+                // —— 跟右上角小按钮 "AI 点评" 功能完全重复，删掉
             }
             commentRow(avatar: "😊", name: "美妆控小A", body: "这个也太好用了吧！种草了种草了🌿", time: "2小时前", likes: "32", isAI: false)
             ForEach(liveComments) { c in

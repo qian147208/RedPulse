@@ -12,6 +12,7 @@ import SwiftUI
 
 struct GenerateStepStep4Hint: View {
     @Binding var hintText: String
+    @Binding var selectedChips: Set<String>
     @Binding var hintChips: [String]
     @Binding var isLoadingHints: Bool
     @Binding var showStep4Tip: Bool
@@ -20,46 +21,63 @@ struct GenerateStepStep4Hint: View {
     @Binding var refreshHintsToken: Int
 
     @AppStorage("hint_collapse") private var hintCollapsed = false
+    @FocusState private var isHintFocused: Bool
 
     var body: some View {
         let isCollapsed = hintCollapsed
         return VStack(alignment: .leading, spacing: 0) {
-            Button {
-                HapticManager.lightImpact()
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    if isCollapsed { hintCollapsed = false }
-                    else { hintCollapsed = true }
-                }
-            } label: {
-                HStack(spacing: Spacing.sm) {
-                    stepBadge(4, active: !isCollapsed)
-                    Text("风格关键词").editorialLabel()
-                    Spacer()
-                    if !isCollapsed {
-                        if isLoadingHints {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Button {
-                                refreshHintsToken += 1
-                            } label: {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(Color.brand)
-                                    .frame(width: 32, height: 32)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
+            // Header 拆嵌套 button：左侧标题区/右侧刷新/箭头 都是独立 button
+            HStack(spacing: Spacing.sm) {
+                Button {
+                    HapticManager.lightImpact()
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        hintCollapsed.toggle()
                     }
+                } label: {
+                    HStack(spacing: Spacing.sm) {
+                        stepBadge(4, active: !isCollapsed)
+                        Text("风格关键词").editorialLabel()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 8)
+
+                if !isCollapsed {
+                    if isLoadingHints {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button {
+                            HapticManager.lightImpact()
+                            refreshHintsToken += 1
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.brand)
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Button {
+                    HapticManager.lightImpact()
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        hintCollapsed.toggle()
+                    }
+                } label: {
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.ink3)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.lg)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, Spacing.lg)
+            .padding(.top, Spacing.lg)
 
             if !isCollapsed {
                 VStack(alignment: .leading, spacing: Spacing.md) {
@@ -80,7 +98,9 @@ struct GenerateStepStep4Hint: View {
 
                     FlowLayout(spacing: Spacing.sm) {
                         ForEach(hintChips, id: \.self) { chip in
-                            let isSelected = hintText.contains(chip)
+                            // 选中态由 selectedChips Set 追踪（**不**从 hintText 文本算）—
+                            // 这样用户手输入的 token 不会"被判定为"是 LLM 搜出来的 chip
+                            let isSelected = selectedChips.contains(chip)
                             hintChip(chip: chip, isSelected: isSelected)
                         }
                     }
@@ -114,6 +134,8 @@ struct GenerateStepStep4Hint: View {
                 TextEditor(text: $hintText)
                     .font(Typography.bodySmall)
                     .scrollContentBackground(.hidden)
+                    .scrollDisabled(!isHintFocused)   // 未聚焦时滚轮事件穿透到外层
+                    .focused($isHintFocused)
                     .frame(minHeight: 80, maxHeight: 100)
             }
             .padding(Spacing.md)
@@ -122,6 +144,7 @@ struct GenerateStepStep4Hint: View {
                 if !hintText.isEmpty {
                     Button {
                         hintText = ""
+                        selectedChips.removeAll()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 14))
@@ -189,16 +212,16 @@ struct GenerateStepStep4Hint: View {
             HapticManager.lightImpact()
             withAnimation(.spring(duration: 0.2, bounce: 0.2)) {
                 if isSelected {
-                    hintText = hintText
-                        .replacingOccurrences(of: " \(chip)", with: "")
-                        .replacingOccurrences(of: "\(chip) ", with: "")
-                        .replacingOccurrences(of: chip, with: "")
-                        .trimmingCharacters(in: .whitespaces)
+                    // 再次点 → Set 移除 + 从 hintText 中**精确 token 删除**该 chip
+                    selectedChips.remove(chip)
+                    let tokens = hintText.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+                    hintText = tokens.filter { $0 != chip }.joined(separator: " ")
                 } else {
-                    if hintText.isEmpty {
-                        hintText = chip
-                    } else {
-                        hintText += " " + chip
+                    // 首次点 → Set 加入 + append 到 hintText
+                    selectedChips.insert(chip)
+                    let tokens = hintText.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+                    if !tokens.contains(chip) {
+                        hintText = hintText.isEmpty ? chip : hintText + " " + chip
                     }
                 }
             }

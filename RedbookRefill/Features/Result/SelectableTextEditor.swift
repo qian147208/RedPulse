@@ -36,7 +36,6 @@ private extension UITextView {
 struct SelectableTextEditor: UIViewRepresentable {
     @Binding var text: String
     @Binding var selectedText: String
-    @Binding var showRewriteDialog: Bool
     var font: UIFont = .systemFont(ofSize: 16)
     var lineSpacing: CGFloat = 6
 
@@ -93,12 +92,10 @@ struct SelectableTextEditor: UIViewRepresentable {
                     let trimmed = selected.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty {
                         self.parent.selectedText = trimmed
-                        self.parent.showRewriteDialog = true
                         return
                     }
                 }
                 self.parent.selectedText = ""
-                self.parent.showRewriteDialog = false
             }
             debounceWorkItem = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
@@ -149,7 +146,6 @@ private extension NSTextView {
 struct SelectableTextEditor: NSViewRepresentable {
     @Binding var text: String
     @Binding var selectedText: String
-    @Binding var showRewriteDialog: Bool
     /// On macOS, receives the screen-space origin of the text selection
     var selectionScreenOrigin: Binding<NSPoint>? = nil
     var font: NSFont = .systemFont(ofSize: 16)
@@ -224,7 +220,6 @@ struct SelectableTextEditor: NSViewRepresentable {
                     let trimmed = selected.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty {
                         self.parent.selectedText = trimmed
-                        self.parent.showRewriteDialog = true
                         // Capture the selection's screen position for FloatingToolbarPanel
                         if let screenRect = tv.selectedScreenRect() {
                             self.parent.selectionScreenOrigin?.wrappedValue = screenRect.origin
@@ -233,7 +228,6 @@ struct SelectableTextEditor: NSViewRepresentable {
                     }
                 }
                 self.parent.selectedText = ""
-                self.parent.showRewriteDialog = false
             }
             debounceWorkItem = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)

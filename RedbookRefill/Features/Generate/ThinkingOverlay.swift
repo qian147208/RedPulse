@@ -16,10 +16,29 @@ struct ThinkingOverlay: View {
     let isActive: Bool
     /// 点击「取消」时的回调；nil 时不显示取消按钮。
     let onCancel: (() -> Void)?
+    /// LLM 真实进度（0.0-1.0）。0 表示不显示进度条。
+    var progress: Double = 0
+    /// LLM 阶段文案（如"撰写正文"），显示在卡片里
+    var stage: String = ""
+    /// 已收字符数（让用户看到具体进度数字）
+    var receivedChars: Int = 0
+    /// 目标字符数（分母）
+    var targetChars: Int = 1000
 
-    init(isActive: Bool, onCancel: (() -> Void)? = nil) {
+    init(
+        isActive: Bool,
+        onCancel: (() -> Void)? = nil,
+        progress: Double = 0,
+        stage: String = "",
+        receivedChars: Int = 0,
+        targetChars: Int = 1000
+    ) {
         self.isActive = isActive
         self.onCancel = onCancel
+        self.progress = progress
+        self.stage = stage
+        self.receivedChars = receivedChars
+        self.targetChars = targetChars
     }
 
     /// 分步进度步骤（每步自动推进，约 2.5s 一步）。
@@ -44,6 +63,9 @@ struct ThinkingOverlay: View {
     /// 开始时间，用于显示已用秒数。
     @State private var startedAt: Date = .distantPast
     @State private var elapsedSeconds: Int = 0
+    /// 持有 4 个动画 task 的引用 — view 重建时 startAnimations 先取消这些，
+    /// 避免上一轮 view 死掉的 task 还占着循环。
+    @State private var animTasks: [Task<Void, Never>] = []
 
     var body: some View {
         ZStack {
@@ -58,6 +80,12 @@ struct ThinkingOverlay: View {
             }
         }
         .animation(.easeOut(duration: 0.25), value: isActive)
+        // view 出现时如果仍在 active，**主动**重启动画 ——
+        // 解决"切到别的 tab 回来，session.isGenerating 一直 true → onChange 不触发
+        // → startAnimations 不会被调用 → 动画卡住"的问题
+        .onAppear {
+            if isActive { startAnimations() }
+        }
         .onChange(of: isActive) { _, on in
             if on { startAnimations() } else { stopAnimations() }
         }
@@ -101,7 +129,33 @@ struct ThinkingOverlay: View {
                     .font(.system(size: 11, weight: .medium).monospacedDigit())
             }
             .foregroundStyle(elapsedSeconds >= 20 ? Color.warning : Color.ink3)
-            .padding(.bottom, 16)
+
+            // 真实进度条（LLM 流式字符数 / 目标字符数）
+            if progress > 0 {
+                VStack(spacing: 6) {
+                    HStack(spacing: 4) {
+                        if !stage.isEmpty {
+                            Text(stage)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.brand)
+                        }
+                        Spacer()
+                        Text("\(receivedChars)/\(targetChars) 字")
+                            .font(.system(size: 10, weight: .medium).monospacedDigit())
+                            .foregroundStyle(Color.ink3)
+                        Text("\(Int(progress * 100))%")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.brand)
+                            .frame(width: 36, alignment: .trailing)
+                    }
+                    ProgressView(value: min(progress, 1.0))
+                        .progressViewStyle(.linear)
+                        .tint(Color.brand)
+                }
+                .padding(.bottom, 16)
+            } else {
+                Spacer().frame(height: 16)
+            }
 
             if let onCancel {
                 Button {
@@ -242,6 +296,10 @@ struct ThinkingOverlay: View {
     // MARK: - Animations
 
     private func startAnimations() {
+        // 先取消上一轮的所有 task（view 重建 / 重入场景）— 防止旧 task 死循环占着
+        animTasks.forEach { $0.cancel() }
+        animTasks.removeAll()
+
         dots = ""
         activeStepIndex = 0
         iconAngle = 0
@@ -251,14 +309,14 @@ struct ThinkingOverlay: View {
         elapsedSeconds = 0
 
         // elapsed 秒数轮询
-        Task {
-            while isActive {
+        animTasks.append(Task {
+            while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 500_000_000)
-                if !isActive { break }
+                if Task.isCancelled { break }
                 let s = Int(Date().timeIntervalSince(startedAt))
                 await MainActor.run { elapsedSeconds = s }
             }
-        }
+        })
 
         // 图标无限旋转
         withAnimation(.linear(duration: 4).repeatForever(autoreverses: false)) {
@@ -274,11 +332,11 @@ struct ThinkingOverlay: View {
         }
 
         // 分步自动推进：每 2.5s 亮起下一步
-        Task {
+        animTasks.append(Task {
             var i = 0
-            while isActive && i < Self.steps.count {
+            while !Task.isCancelled && i < Self.steps.count {
                 try? await Task.sleep(nanoseconds: 2_500_000_000)
-                if !isActive { break }
+                if Task.isCancelled { break }
                 i += 1
                 await MainActor.run {
                     withAnimation(.easeInOut(duration: 0.35)) {
@@ -286,21 +344,24 @@ struct ThinkingOverlay: View {
                     }
                 }
             }
-        }
+        })
 
         // dots 三点循环
-        Task {
+        animTasks.append(Task {
             var n = 0
-            while isActive {
+            while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 400_000_000)
-                if !isActive { break }
+                if Task.isCancelled { break }
                 n = (n + 1) % 4
                 await MainActor.run { dots = String(repeating: ".", count: n) }
             }
-        }
+        })
     }
 
     private func stopAnimations() {
+        // 取消所有 task
+        animTasks.forEach { $0.cancel() }
+        animTasks.removeAll()
         dots = ""
         activeStepIndex = -1
     }

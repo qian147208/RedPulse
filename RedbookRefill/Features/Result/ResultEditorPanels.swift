@@ -14,7 +14,6 @@ import SwiftData
 struct ResultEditorPanel: View {
     @Binding var record: GenerationRecord
     @Binding var selectedText: String
-    @Binding var showRewriteDialog: Bool
     @Binding var showEmojiPicker: Bool
     @Binding var showAddTag: Bool
     @Binding var newTagText: String
@@ -63,26 +62,6 @@ struct ResultEditorPanel: View {
 
     private func ensureCloneIfNeeded() {
         guard fromHistory, !cloneCreated else { return }
-        let newRecord = GenerationRecord(
-            id: UUID(),
-            adType: record.adType,
-            inputKeyword: record.inputKeyword,
-            keywordHint: record.keywordHint,
-            productId: record.productId,
-            noteTitle: record.noteTitle,
-            content: record.content,
-            tags: record.tags,
-            imageSuggestion: record.imageSuggestion,
-            imagePrompt: record.imagePrompt,
-            videoPrompt: record.videoPrompt,
-            imageUrls: record.imageUrls,
-            videoUrl: record.videoUrl,
-            easterEggText: record.easterEggText,
-            hotScore: record.hotScore,
-            suggestion: record.suggestion,
-            isEdited: false,
-            createdAt: Date()
-        )
         onEnsureClone()
     }
 
@@ -100,6 +79,9 @@ struct ResultEditorPanel: View {
         .font(.system(size: 22, weight: .bold, design: .serif))
         .foregroundStyle(Color.ink)
         .textFieldStyle(.plain)
+        // 窗口收窄 / sidebar 还在时，标题按 0.6x 比例缩字号避免被切
+        .minimumScaleFactor(0.6)
+        .lineLimit(1)
         .frame(maxWidth: .infinity)
     }
 
@@ -121,7 +103,6 @@ struct ResultEditorPanel: View {
                         }
                     ),
                     selectedText: $selectedText,
-                    showRewriteDialog: $showRewriteDialog,
                     selectionScreenOrigin: .constant(.zero),
                     font: .systemFont(ofSize: 16),
                     lineSpacing: 7
@@ -137,7 +118,6 @@ struct ResultEditorPanel: View {
                         }
                     ),
                     selectedText: $selectedText,
-                    showRewriteDialog: $showRewriteDialog,
                     font: .systemFont(ofSize: 16),
                     lineSpacing: 7
                 )

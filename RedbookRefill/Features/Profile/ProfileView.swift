@@ -10,14 +10,11 @@ import SwiftUI
 import SwiftData
 
 struct ProfileView: View {
-    @Environment(CoachMarkManager.self) private var coachMarkManager
     @Query(sort: \Product.createdAt, order: .reverse) private var products: [Product]
     @Query(sort: \GenerationRecord.createdAt, order: .reverse) private var records: [GenerationRecord]
 
     @Binding var selectedTab: TabItem
     @State private var showInspirationBoard = false
-    @AppStorage("has_seen_coach_marks_generate") private var hasSeenCoachMarksGenerate = false
-    @AppStorage("has_seen_coach_marks_result") private var hasSeenCoachMarksResult = false
 
     var body: some View {
         ScrollView {
@@ -134,7 +131,14 @@ struct ProfileView: View {
                 .foregroundStyle(Color.ink3)
                 .padding(.leading, 4)
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.sm) {
+            // 严格 2x2 网格（上二下二），跨平台视觉一致
+            // 之前 P1-8 改成自适应 .adaptive(minimum: 200)，
+            // 在 Mac 宽屏上自动撑成 3+1，用户觉得"还是上二下二"不对
+            // —— 这里用户明确要求固定 2x2
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: Spacing.sm), GridItem(.flexible(), spacing: Spacing.sm)],
+                spacing: Spacing.sm
+            ) {
                 QuickActionButton(
                     icon: "wand.and.stars",
                     label: "新建生成",
@@ -180,34 +184,6 @@ struct ProfileView: View {
                 .padding(.leading, 4)
 
             VStack(spacing: 0) {
-                // 操作引导
-                Button {
-                    hasSeenCoachMarksGenerate = false
-                    hasSeenCoachMarksResult = false
-                    selectedTab = .generate
-                } label: {
-                    HStack(spacing: Spacing.md) {
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 20))
-                            .foregroundStyle(Color.brand)
-                            .frame(width: 28)
-                        Text("重新查看操作引导")
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color.ink)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink3)
-                    }
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.vertical, 16)
-                    .frame(minHeight: 52)
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-                    .padding(.leading, 52)
-
                 SettingsRow(icon: "gearshape", label: "设置") {
                     SettingsView()
                 }
@@ -229,14 +205,10 @@ struct ProfileView: View {
                 Divider()
                     .padding(.leading, 52)
 
-                // 重新引导按钮
+                // 重新引导按钮（重置 currentStep 让所有 popover 重新触发）
                 Button {
-                    coachMarkManager.hasShownGenerate = false
-                    coachMarkManager.hasShownResult = false
+                    UserDefaults.standard.set(-1, forKey: "generate_onboarding_step")
                     selectedTab = .generate
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                        coachMarkManager.start(steps: CoachMarkStep.generateSteps)
-                    }
                 } label: {
                     HStack(spacing: Spacing.md) {
                         Image(systemName: "arrow.triangle.2.circlepath")
@@ -374,6 +346,11 @@ private struct SettingsRow<Destination: View>: View {
             .padding(.horizontal, Spacing.lg)
             .padding(.vertical, 16)
             .frame(minHeight: 52)
+            // 强制覆盖 macOS NavigationLink 的默认 hover/selected tint
+            // — 不加这一行整行会被 brand 红色的淡化版铺满
+            .background(Color.surface)
         }
+        // macOS 上 NavigationLink 默认会带 tint hover，强制 plain 关掉
+        .buttonStyle(.plain)
     }
 }

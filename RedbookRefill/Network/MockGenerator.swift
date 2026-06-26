@@ -15,7 +15,19 @@ final class MockGenerator: GeneratorProtocol {
     // MARK: - GeneratorProtocol
 
     func generate(_ req: GenerateRequest) async throws -> GenerateResponse {
-        try await sleep(seconds: 1.5)
+        try await generateStream(req, onChunk: { _ in })
+    }
+
+    /// Mock 流式：把模板内容拆成 20 个 chunk 每 80ms yield 一次，让 UI 能看到进度条增长。
+    func generateStream(_ req: GenerateRequest, onChunk: @MainActor (Int) -> Void) async throws -> GenerateResponse {
+        // 模拟 1.5s 总耗时，拆 ~20 步
+        let totalSteps = 20
+        let perStepNanos: UInt64 = 75_000_000   // 75ms × 20 = 1.5s
+        for i in 1...totalSteps {
+            try Task.checkCancellation()
+            try await Task.sleep(nanoseconds: perStepNanos)
+            await MainActor.run { onChunk(i * 50) }   // 假设目标 1000 字,每步累加 50 字
+        }
         let pn = productName(from: req.keyword, product: req.product)
         let pack = TemplatePack.pick(for: req.adType)
         let debugPrompt = """
@@ -94,25 +106,6 @@ final class MockGenerator: GeneratorProtocol {
         try await sleep(seconds: 1.0)
         let pn = productName(from: keyword, product: product)
         return TemplatePack.pick(for: adType).tags(pn: pn)
-    }
-
-    func transformText(command: String, selectedText: String, context: String) async throws -> String {
-        try await sleep(seconds: 0.8)
-        switch command {
-        case "润色":
-            return "「\(selectedText)」—— 已优化表达，使语句更流畅自然"
-        case "改写":
-            return "换个说法：\(selectedText) 的另一种表达方式已生成"
-        case "扩写":
-            return "\(selectedText)：这一点可以展开来说，它不仅体现在产品本身，更延伸到了日常使用场景中，让用户体验更加完整"
-        case "缩写":
-            let shortened = String(selectedText.prefix(max(1, selectedText.count / 2)))
-            return shortened.isEmpty ? selectedText : shortened
-        case "换风格":
-            return "来看看这样写：\(selectedText) ✨ 换个风格是不是更有小红书的感觉了"
-        default:
-            return selectedText
-        }
     }
 
     func summarizeImagePrompt(

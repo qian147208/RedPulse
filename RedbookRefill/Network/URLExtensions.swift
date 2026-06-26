@@ -9,7 +9,7 @@ import Foundation
 
 extension URL {
     /// 安全地从字符串解析 URL。如果标准解析失败，会自动尝试进行百分号编码。
-    static func safeURL(from string: String) -> URL? {
+    nonisolated static func safeURL(from string: String) -> URL? {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return nil }
         

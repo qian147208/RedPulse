@@ -5,8 +5,8 @@
 
 set -e
 
-PROJECT_ROOT="/Users/mac/Desktop/红书笔芯/RedbookRefill"
-PROJECT_FILE="$PROJECT_ROOT/RedbookRefill.xcodeproj/project.pbxproj"
+PROJECT_ROOT="/Users/mac/Desktop/RedbookRefill"
+PROJECT_FILE="$PROJECT_ROOT/RedbookRefill.xcodeproj"
 
 echo "============================================"
 echo " RedbookRefill Build Script"

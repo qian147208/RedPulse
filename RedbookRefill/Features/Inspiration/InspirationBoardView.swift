@@ -28,16 +28,9 @@ struct InspirationBoardView: View {
     }
 
     var body: some View {
+        // P1-7: InspirationBoardView 永远以 sheet 弹出（ProfileView 一处入口），
+        // 顶部由 navigationTitle 渲染大/中标题，自己不再画 28pt 大标题，避免 iPad 上"双层标题"。
         VStack(spacing: 0) {
-            if sizeClass == .regular {
-                Text("灵感板")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Color.ink)
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.top, Spacing.lg)
-                    .padding(.bottom, Spacing.xs)
-            }
-
             typeFilterBar
                 .padding(.horizontal, Adaptive.horizontalPageMargin)
                 .padding(.top, sizeClass == .regular ? Spacing.md : Spacing.lg)
@@ -56,7 +49,7 @@ struct InspirationBoardView: View {
         .background(Color.bg)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle(sizeClass == .regular ? "" : "灵感板")
+        .navigationTitle("灵感板")
         #endif
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

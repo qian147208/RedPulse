@@ -39,9 +39,8 @@ struct ChatLauncher: View {
         #if os(macOS)
         return 60
         #else
-        #if targetEnvironment(macCatalyst)
-        return 60
-        #else
+        // P1-6: 已关闭 Mac Catalyst（SUPPORTS_MACCATALYST = NO），这里不再需要 Catalyst 分支。
+        // iOS app on Mac（通过 App Store 在 Apple Silicon Mac 上跑 iOS app）走 isiOSAppOnMac 检查。
         if ProcessInfo.processInfo.isiOSAppOnMac {
             return 60
         }
@@ -49,7 +48,6 @@ struct ChatLauncher: View {
             return 50
         }
         return 0
-        #endif
         #endif
     }
 

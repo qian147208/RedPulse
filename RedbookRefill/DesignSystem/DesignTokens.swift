@@ -313,19 +313,36 @@ final class ScreenMetrics {
 /// Apply once at the top of the view hierarchy (in RedPulseApp).
 /// Updates `ScreenMetrics.shared` so all views that read `Adaptive.*`
 /// re-render when the window size changes.
+///
+/// debounce 调到 16ms（≈ 一帧）：原来的 80ms 偏长，导致两点体感问题
+/// ① 刚打开页面要等 80ms 边界才算出来（首屏虽然走 onAppear 立即同步，但紧接着的
+///    resize 抖动会触发 debounce 任务，叠加在首次 layout 上让用户感觉"卡一下"）；
+/// ② 快速拖窗口时 UI 滞后明显，肉眼能看到"顿一下"才适配。
+/// 16ms 几乎无感（不到一帧），又能合并同帧内的多次 onChange。
 struct ScreenMetricsTracker: ViewModifier {
+    @State private var debounceTask: Task<Void, Never>?
+
     func body(content: Content) -> some View {
         content
             .background {
                 GeometryReader { geo in
                     Color.clear
                         .onAppear {
+                            // 首次出现立即同步，无需 debounce（用户期待首屏就正确适配）
                             ScreenMetrics.shared.width = geo.size.width
                             ScreenMetrics.shared.height = geo.size.height
                         }
                         .onChange(of: geo.size) { _, newSize in
-                            ScreenMetrics.shared.width = newSize.width
-                            ScreenMetrics.shared.height = newSize.height
+                            // 取消上一次未提交的更新，把同帧内的多次 onChange 合并成一次
+                            debounceTask?.cancel()
+                            debounceTask = Task {
+                                try? await Task.sleep(nanoseconds: 16_000_000) // 16ms ≈ 1 frame
+                                if Task.isCancelled { return }
+                                await MainActor.run {
+                                    ScreenMetrics.shared.width = newSize.width
+                                    ScreenMetrics.shared.height = newSize.height
+                                }
+                            }
                         }
                 }
                 .allowsHitTesting(false)
@@ -357,31 +374,42 @@ enum Adaptive {
         let w = ScreenMetrics.shared.width
         if w <= 375 { return 12 }
         if w < 430  { return 16 }
-        return 20
+        if w < 900  { return 20 }    // iPhone Pro Max
+        if w < 1100 { return 28 }    // iPad / iPad mini 横屏
+        if w < 1400 { return 32 }    // iPad Pro 11" / 12.9" / Mac 13"
+        return 40                    // Mac 14"+ / iPad Pro 12.9" 分屏
     }
 
     public static var cardPadding: CGFloat {
         let w = ScreenMetrics.shared.width
         if w <= 375 { return 12 }
         if w < 430  { return 16 }
-        return 20
+        if w < 900  { return 20 }    // iPhone Pro Max
+        if w < 1100 { return 24 }    // iPad
+        return 28                    // iPad Pro / Mac
     }
 
     public static var stackSpacing: CGFloat {
         let w = ScreenMetrics.shared.width
         if w <= 375 { return 10 }
         if w < 430  { return 12 }
-        return 16
+        if w < 900  { return 16 }    // iPhone Pro Max
+        if w < 1100 { return 20 }    // iPad
+        return 24                    // iPad Pro / Mac
     }
 
     // MARK: - Font scaling
 
-    /// Scale factor: 0.92 (SE) → 1.0 (standard) → 1.08 (Pro Max).
+    /// Scale factor: 0.92 (SE) → 1.0 (standard) → 1.08 (Pro Max) → 1.15 (iPad) → 1.25 (Mac)
+    /// iPad/Mac 上适度放大字号，保证阅读距离下的舒适度（macOS 习惯）。
     public static var fontScale: CGFloat {
         let w = ScreenMetrics.shared.width
         if w <= 375 { return 0.92 }
         if w < 430  { return 1.0 }
-        return min(w / 393, 1.08)
+        if w < 900  { return min(w / 393, 1.08) }   // iPhone Pro Max
+        if w < 1100 { return 1.12 }                  // iPad
+        if w < 1400 { return 1.18 }                  // iPad Pro / Mac 13"
+        return 1.25                                  // Mac 14"+
     }
 
     public static var heroFontSize: CGFloat { 26 * fontScale }

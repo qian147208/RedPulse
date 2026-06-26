@@ -13,7 +13,8 @@ struct SettingsView: View {
     // MARK: - Environment
 
     @Environment(Repository.self) private var repository
-    @Environment(\.dismiss) private var dismiss
+    // 不再需要 dismiss — SettingsView 通过 NavigationLink push 进入
+    // 返回由系统自动按钮处理
 
     // MARK: - State
 
@@ -22,8 +23,6 @@ struct SettingsView: View {
 
     @State private var showClearCacheAlert = false
     @State private var showClearDataAlert = false
-
-    @State private var showLLMConfig = false
 
     @State private var toastText: String = ""
     @State private var showToast: Bool = false
@@ -34,8 +33,8 @@ struct SettingsView: View {
         ScrollView {
             VStack(spacing: Spacing.md) {
                 appearanceCard
+                llmConfigCard   // 紧跟外观设置
                 cacheCard
-                llmConfigCard
                 dataCard
                 versionUpdateCard
             }
@@ -62,11 +61,6 @@ struct SettingsView: View {
             Button("确认清除", role: .destructive, action: handleClearAllData)
         } message: {
             Text("将删除产品库、生成历史、反馈数据。此操作不可恢复。")
-        }
-        .sheet(isPresented: $showLLMConfig) {
-            NavigationStack {
-                LLMConfigView()
-            }
         }
     }
 
@@ -123,15 +117,20 @@ struct SettingsView: View {
             rowLayout(icon: "photo", iconColor: Color.brand, label: "清除图片缓存", labelColor: Color.ink, showChevron: true)
                 .cardBackground()
         }
+        // 关键：去 .plain — 否则 Mac 上默认 Button 会给整张卡片铺一层 hover 粉底纹
+        .buttonStyle(.plain)
     }
 
     private var llmConfigCard: some View {
-        Button {
-            showLLMConfig = true
+        // 用 NavigationLink push — 整个在主窗口 NavigationStack 内，不弹 sheet
+        // 严格在主页面内（"他"指代：主窗口内、不在外面浮动）
+        NavigationLink {
+            LLMConfigView()
         } label: {
             rowLayout(icon: "cpu", iconColor: Color.brand, label: "大模型配置", labelColor: Color.ink, showChevron: true)
                 .cardBackground()
         }
+        .buttonStyle(.plain)
     }
 
     private var dataCard: some View {
@@ -141,6 +140,8 @@ struct SettingsView: View {
             rowLayout(icon: "trash", iconColor: .red, label: "清除所有数据", labelColor: .red, showChevron: true)
                 .cardBackground()
         }
+        // 同 cacheCard：去默认 Button 粉底纹
+        .buttonStyle(.plain)
     }
 
     private var versionUpdateCard: some View {
@@ -163,8 +164,10 @@ struct SettingsView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Color.ink3)
         }
+        // 跟其他单行卡片对齐：同 horizontal padding / 同 minHeight
         .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, 14)
+        .padding(.vertical, 18)
+        .frame(minHeight: 56)
         .cardBackground()
     }
 

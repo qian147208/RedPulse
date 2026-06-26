@@ -31,7 +31,7 @@ enum NoteCommentSuggestionKind: String, Codable {
 }
 
 /// 建议 payload（序列化为 suggestionJSON 字段）
-struct NoteCommentSuggestion: Codable {
+nonisolated struct NoteCommentSuggestion: Codable {
     var kind: NoteCommentSuggestionKind
     /// 原文片段（可选，用于行内 Diff 高亮，无则全文替换）
     var originalSnippet: String?

@@ -3,13 +3,15 @@
 //  RedPulse
 //
 //  Wraps UIImagePickerController for camera capture on iOS / iPadOS.
-//  On macOS (native and Catalyst), the camera path is not exposed —
-//  callers should only present this when running on actual iOS/iPadOS.
+//  On macOS the camera path is not exposed — callers should only present
+//  this when running on actual iOS/iPadOS.
+//  P1-6: 项目已关闭 Mac Catalyst（SUPPORTS_MACCATALYST = NO），所以 !targetEnvironment(macCatalyst)
+//  分支可以删掉，统一用 #if os(iOS) 即可。
 //
 
 import SwiftUI
 
-#if os(iOS) && !targetEnvironment(macCatalyst)
+#if os(iOS)
 import UIKit
 
 struct CameraPicker: UIViewControllerRepresentable {
